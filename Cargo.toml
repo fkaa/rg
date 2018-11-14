@@ -1,0 +1,13 @@
+[package]
+name = "rg"
+version = "0.1.0"
+authors = ["Felix Kaaman <trundmatu@gmail.com>"]
+
+[dependencies]
+crc = "1.5.0"
+bitflags = "1.0"
+rusttype = "0.2.3"
+
+[dev-dependencies.winapi]
+path = "../fkaa-winapi"
+features = ["everything"]

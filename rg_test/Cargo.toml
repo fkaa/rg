@@ -1,0 +1,16 @@
+[package]
+name = "rg_test"
+version = "0.1.0"
+build = "shaders/build.rs"
+authors = ["fkaa"]
+
+[dependencies]
+rg = { path = "../rg" }
+
+[dependencies.winapi]
+git = "https://github.com/retep998/winapi-rs"
+branch = "dev"
+features = ["everything"]
+
+[build-dependencies]
+fxc = { path = "../fxc/" }
