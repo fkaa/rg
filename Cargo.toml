@@ -9,5 +9,5 @@ bitflags = "1.0"
 rusttype = "0.2.3"
 
 [dev-dependencies.winapi]
-path = "../fkaa-winapi"
+version = "0.3"
 features = ["everything"]

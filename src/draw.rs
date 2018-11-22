@@ -20,8 +20,8 @@ impl Vertex {
     }
 }
 
-pub trait Renderer<Userdata> {
-    fn render(&mut self, ud: Userdata, list: &DrawList);
+pub trait Renderer {
+    fn render(&mut self, list: &DrawList);
 }
 
 pub struct DrawCommand {
@@ -58,8 +58,6 @@ pub struct DrawList {
 pub struct PathBuilder<'a> {
     list: &'a mut DrawList
 }
-
-
 
 fn build_arc_lut() -> [float2; 12] {
     let mut arr = [float2(0f32, 0f32); 12];
@@ -102,12 +100,15 @@ impl<'a> PathBuilder<'a> {
             let a = min + (i as f32 / segments as f32) * (max - min);
             self.list.path.push(float2(center.0 + a.cos() * radius, center.1 + a.sin() * radius));
         }
+        
         self
     }
 
-    pub fn stroke(self, thickness: f32, closed: bool, color: u32) {
+    pub fn stroke(self, thickness: f32, closed: bool, color: u32) -> Self {
         self.list.add_poly_line(thickness, closed, color);
         self.list.path.clear();
+
+        self
     }
 
     pub fn fill(self, color: u32) {
@@ -130,6 +131,16 @@ impl DrawList {
             texture_stack: Vec::new()
         }
     }
+
+    pub fn clear(&mut self) {
+        self.index_offset = 0;
+        self.vertices.clear();
+        self.indices.clear();
+        self.path.clear();
+        self.clip_stack.clear();
+        self.texture_stack.clear();
+    }
+    
     pub fn push_clip_rect(&mut self, rect: float4) {
         self.clip_stack.push(rect);
 
@@ -226,8 +237,6 @@ impl DrawList {
                 self.path[i + 1]
             };
 
-            println!("{:?}: {:?} -> {:?}", i, p1, p2);
-
             let diff = {
                 let diff = p2 - p1;
                 let len = {
@@ -242,10 +251,10 @@ impl DrawList {
                 diff * (1f32 / len) * thickness * 0.5f32
             };
 
-            self.vertices.place_back() <- Vertex::new(p1 + float2( diff.1, -diff.0), uv, color);
-            self.vertices.place_back() <- Vertex::new(p2 + float2( diff.1, -diff.0), uv, color);
-            self.vertices.place_back() <- Vertex::new(p2 + float2(-diff.1,  diff.0), uv, color);
-            self.vertices.place_back() <- Vertex::new(p1 + float2(-diff.1,  diff.0), uv, color);
+            self.vertices.push(Vertex::new(p1 + float2( diff.1, -diff.0), uv, color));
+            self.vertices.push(Vertex::new(p2 + float2( diff.1, -diff.0), uv, color));
+            self.vertices.push(Vertex::new(p2 + float2(-diff.1,  diff.0), uv, color));
+            self.vertices.push(Vertex::new(p1 + float2(-diff.1,  diff.0), uv, color));
 
             self.indices.push(offset as u16 + 0);
             self.indices.push(offset as u16 + 1);
@@ -269,7 +278,7 @@ impl DrawList {
         self.current_cmd().index_count += index_count as u32;
 
         for i in 0..vertex_count {
-            self.vertices.place_back() <- Vertex::new(self.path[i], uv, color);
+            self.vertices.push(Vertex::new(self.path[i], uv, color));
         }
 
         let offset = self.index_offset as u16;
@@ -294,7 +303,7 @@ impl DrawList {
         let rect = self.current_clip_rect();
         let texture = self.current_texture();
 
-        self.commands.place_back() <- DrawCommand { index_count: 0, clip_rect: rect, texture_id: texture };
+        self.commands.push(DrawCommand { index_count: 0, clip_rect: rect, texture_id: texture })
     }
 
     fn current_cmd(&mut self) -> &mut DrawCommand {
@@ -341,10 +350,4 @@ impl Iterator for QuadIndexU16Iterator {
 
 pub fn index_u16() -> QuadIndexU16Iterator {
     QuadIndexU16Iterator { index: 0, vertex: 0 }
-}
-
-#[test]
-fn index() {
-    //println!("{:#?}", (0..10).map(|i| i % 6 % 3).collect::<Vec<_>>());
-    println!("{:#?}", index_u16().take(20).collect::<Vec<_>>())
 }

@@ -15,6 +15,7 @@ use winapi::shared::minwindef::*;
 use winapi::Interface;
 
 use rg::Renderer;
+use rg::Context;
 
 macro_rules! c_str {
     ($str:expr) => (concat!($str, '\0').as_ptr() as *const i8)
@@ -22,6 +23,9 @@ macro_rules! c_str {
 
 #[derive(Debug)]
 struct RgDx11Renderer {
+    device: *mut ID3D11Device,
+    context: *mut ID3D11DeviceContext,
+    
     texture: *mut ID3D11ShaderResourceView,
     layout: *mut ID3D11InputLayout,
     vs: *mut ID3D11VertexShader,
@@ -37,7 +41,7 @@ struct RgDx11Renderer {
 }
 
 impl RgDx11Renderer {
-    pub fn new(device: *mut ID3D11Device) -> Self {
+    pub fn new(device: *mut ID3D11Device, context: *mut ID3D11DeviceContext) -> Self {
         let texture = unsafe {
             let mut res: *mut ID3D11Texture2D = ::std::ptr::null_mut();
 
@@ -213,6 +217,8 @@ impl RgDx11Renderer {
         };
 
         RgDx11Renderer {
+            device,
+            context,
             texture,
             layout,
             vs,
@@ -226,9 +232,11 @@ impl RgDx11Renderer {
     }
 }
 
-impl rg::Renderer<*mut ID3D11DeviceContext> for RgDx11Renderer {
-    fn render(&mut self, cxt: *mut ID3D11DeviceContext, list: &rg::DrawList) {
+impl rg::Renderer for RgDx11Renderer {
+    fn render(&mut self, list: &rg::DrawList) {
         unsafe {
+            let cxt = self.context;
+            
             let mut data: D3D11_MAPPED_SUBRESOURCE = ::std::mem::zeroed();
             let hr = (*cxt).Map(self.camera_buffer as _, 0, D3D11_MAP_WRITE_DISCARD, 0, &mut data as *mut _);
             let ortho = {
@@ -290,28 +298,37 @@ fn main() {
 
 
     {
-        //let mut path = list.path();
+        let mut path = list.path();
 
-        //path.arc(rg::float2(50f32, 50f32), 20f32, 0f32, 3.14f32, 10).stroke(1f32, false, 0x00ff00ff);
+        path = path.arc(rg::float2(50f32, 50f32), 20f32, 0f32, 3.14f32, 10).stroke(1f32, false, 0x00ff00ff);
 
-        /*for x in 16..32 {
+        for x in 16..32 {
             let a = 300f32 + (x as f32 + 5f32 * (x as f32) % 5f32).sin() * 220f32;
             let b = 400f32 + ((x/34-5) as f32 + 3f32 * x as f32).cos() * 260f32;
+            
             path = path.line(rg::float2(a, b));
         }
 
-        path.stroke(1f32, false, 0xffff00ff);*/
+        path.stroke(1f32, false, 0xffff00ff);
     }
 
     list.add_rect_filled(
-        rg::float2(400.75f32, 400.25f32),
-        rg::float2(500.75f32, 430.25f32),
-        //1f32,
-        0f32,
+        rg::float2(400f32, 400f32),
+        rg::float2(500f32, 430f32),
+        //2f32,
+        2f32,
         0xff472980
+    );
+    list.add_rect(
+        rg::float2(400f32, 400f32),
+        rg::float2(500f32, 430f32),
+        2f32,
+        2f32,
+        0xffffffff
     );
 
     list.add_text(rg::float2(440f32, 414f32), 0xffffffff, "Test text!");
+
 
     unsafe {
         let hwnd = create_window();
@@ -373,9 +390,8 @@ fn main() {
             (swapchain, device, context, backbuffer)
         };
 
-        let mut renderer = RgDx11Renderer::new(device);
-
-        println!("{:#?}", renderer);
+        let mut renderer = RgDx11Renderer::new(device, context);
+        let mut cxt = rg::Context::new(Box::new(renderer));
 
         let viewport = D3D11_VIEWPORT {
             TopLeftX: 0f32,
@@ -389,6 +405,7 @@ fn main() {
         (*context).RSSetViewports(1, &viewport);
         (*context).OMSetRenderTargets(1, &backbuffer, ::std::ptr::null_mut());
 
+        let mut press_count = 0;
         let mut running = true;
         while running {
             let mut msg = ::std::mem::uninitialized();
@@ -403,7 +420,16 @@ fn main() {
 
             (*context).ClearRenderTargetView(backbuffer, &[(33f32 / 255f32), (40f32 / 255f32), (45f32 / 255f32), 1f32]);
 
-            renderer.render(context, &list);
+            if cxt.begin("Test") {
+                if cxt.button("Press me!") {
+                    press_count += 1;
+                }
+                cxt.text(&format!("Pressed {} times", press_count));
+                         
+                cxt.end();
+            }
+
+            cxt.draw();
 
             (*swapchain).Present(1, 0);
         }
@@ -466,13 +492,6 @@ unsafe fn register_window_class() -> Vec<u16> {
     class_name
 }
 
-// test comment
-//
-// TODO: test test test newline
-//       more test bla bla.
-//
-// FIXME: abcedewfwefsdfs
-//
 unsafe extern "system" fn callback(window: HWND, msg: UINT,
                                    wparam: WPARAM, lparam: LPARAM)
                                    -> LRESULT

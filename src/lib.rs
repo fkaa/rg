@@ -1,7 +1,3 @@
-#![feature(placement_in_syntax)]
-#![feature(collection_placement)]
-#![feature(jokler)]
-
 extern crate bitflags;
 extern crate crc;
 extern crate rusttype;
@@ -31,6 +27,15 @@ struct Style {
     frame_padding: float2
 }
 
+impl Style {
+    pub fn new() -> Self {
+        Style {
+            window_padding: float2(2f32, 2f32),
+            frame_padding: float2(2f32, 2f32)
+        }
+    }
+}
+
 struct ContextDrawInfo {
     cursor: float2
 }
@@ -50,15 +55,29 @@ struct IoState {
 
 }
 
-struct Context<'a> {
+pub struct Context<'a> {
     windows: Vec<Window<'a>>,
     window_stack: Vec<usize>,
     current_window: Option<usize>,
     style: Style,
-    draw_info: ContextDrawInfo
+
+    draw_list: DrawList,
+    renderer: Box<Renderer>,
 }
 
 impl<'a> Context<'a> {
+    pub fn new(renderer: Box<Renderer>) -> Self {
+        Context {
+            windows: Vec::new(),
+            window_stack: Vec::new(),
+            current_window: None,
+            style: Style::new(),
+
+            draw_list: DrawList::new(),
+            renderer,
+        }
+    }
+    
     pub fn begin(&mut self, name: &'a str) -> bool {
         let window_idx = if let Some(wnd) = self.find_window(name) {
             wnd
@@ -78,12 +97,18 @@ impl<'a> Context<'a> {
     }
 
     pub fn button(&mut self, label: &'a str) -> bool {
-
-
-
         true
     }
 
+    pub fn text(&mut self, text: &str) {
+        
+    }
+
+    pub fn draw(&mut self) {
+        self.renderer.render(&self.draw_list);
+        self.draw_list.clear();
+    }
+    
     fn item_size(&mut self, bb: float4, padding: f32) {
         // TODO: advance draw state
     }
@@ -112,16 +137,5 @@ impl<'a> Context<'a> {
         let id = hash_id(name);
 
         self.windows.iter().position(|ref wnd| wnd.id == id)
-    }
-}
-
-fn test(cxt: &mut Context) {
-    if cxt.begin("test") {
-
-        if cxt.button("press me!") {
-            println!("{}", "pressed button");
-        }
-
-        cxt.end();
     }
 }

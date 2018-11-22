@@ -5,7 +5,7 @@ build = "shaders/build.rs"
 authors = ["fkaa"]
 
 [dependencies]
-rg = { path = "../rg" }
+rg = { path = ".." }
 
 [dependencies.winapi]
 git = "https://github.com/retep998/winapi-rs"
@@ -13,4 +13,4 @@ branch = "dev"
 features = ["everything"]
 
 [build-dependencies]
-fxc = { path = "../fxc/" }
+fxc = { path = "../../fxc/" }
