@@ -1,4 +1,9 @@
-use math::*;
+use crate::math::*;
+
+use rect_packer::{
+    DensePacker,
+    Rect,
+};
 
 pub type Texture = *const ();
 
@@ -40,12 +45,61 @@ impl DrawCommand {
     }
 }
 
-pub struct FontAtlas {
+pub struct FontAtlasPage {
+    packer: DensePacker
+}
 
+pub struct FontGlyph {
+    id: u16,
+    x: u16,
+    y: u16,
+    w: u16,
+    h: u16,
+    y_offset: i16,
+    x_offset: i16,
+    x_advance: i16,
+}
+
+pub struct Font {
+    name: String,
+    rasterize_cache: font_kit::canvas::Canvas,
+    font_face: font_kit::font::Font,
+    
+    font_instances: Vec<FontInstance>,
+}
+
+impl Font {
+    pub fn new(name: String, handle: &font_kit::handle::Handle) -> Result<Self, font_kit::error::FontLoadingError> {
+        let font_face = font_kit::font::Font::from_handle(handle)?;
+        
+        Ok(Font {
+            name,
+            rasterize_cache: font_kit::canvas::Canvas::new(&euclid::Size2D::new(32u32, 32u32), font_kit::canvas::Format::A8),
+            font_face,
+            font_instances: Vec::new(),
+        })
+    }
+}
+
+pub struct FontInstance {
+    font_size: u32,
+    glyphs: Vec<FontGlyph>
+}
+
+pub struct FontAtlas {
+    pages: Vec<FontAtlasPage>,
+    fonts: Vec<Font>,
+}
+
+impl FontAtlas {
+    pub fn new(size: u32) -> Self {
+    
+    }
 }
 
 pub struct DrawList {
     commands: Vec<DrawCommand>,
+
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
     pub index_offset: u32,
@@ -60,12 +114,29 @@ pub struct PathBuilder<'a> {
 }
 
 fn build_arc_lut() -> [float2; 12] {
-    let mut arr = [float2(0f32, 0f32); 12];
+    /*let mut arr = [float2(0f32, 0f32); 12];
     for x in 0..12 {
         let a = ((x as f32) / 12f32) * ::std::f32::consts::PI * 2f32;
         arr[x] = float2(a.cos(), a.sin());
     }
-    arr
+    arr*/
+    
+    use ::std::f32::consts::PI;
+    
+    [
+        float2(0f32, 0f32),
+        float2((1f32 / 12f32 * PI * 2f32).cos(), (1f32 / 12f32 * PI * 2f32).sin()),
+        float2((2f32 / 12f32 * PI * 2f32).cos(), (2f32 / 12f32 * PI * 2f32).sin()),
+        float2((3f32 / 12f32 * PI * 2f32).cos(), (3f32 / 12f32 * PI * 2f32).sin()),
+        float2((4f32 / 12f32 * PI * 2f32).cos(), (4f32 / 12f32 * PI * 2f32).sin()),
+        float2((5f32 / 12f32 * PI * 2f32).cos(), (5f32 / 12f32 * PI * 2f32).sin()),
+        float2((6f32 / 12f32 * PI * 2f32).cos(), (6f32 / 12f32 * PI * 2f32).sin()),
+        float2((7f32 / 12f32 * PI * 2f32).cos(), (7f32 / 12f32 * PI * 2f32).sin()),
+        float2((8f32 / 12f32 * PI * 2f32).cos(), (8f32 / 12f32 * PI * 2f32).sin()),
+        float2((9f32 / 12f32 * PI * 2f32).cos(), (9f32 / 12f32 * PI * 2f32).sin()),
+        float2((10f32 / 12f32 * PI * 2f32).cos(), (10f32 / 12f32 * PI * 2f32).sin()),
+        float2((11f32 / 12f32 * PI * 2f32).cos(), (11f32 / 12f32 * PI * 2f32).sin()),
+    ]
 }
 
 impl<'a> PathBuilder<'a> {

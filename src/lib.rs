@@ -1,12 +1,10 @@
-extern crate bitflags;
-extern crate crc;
-extern crate rusttype;
-
 mod math;
 mod draw;
 
-pub use math::*;
-pub use draw::*;
+pub use self::math::*;
+pub use self::draw::*;
+
+use self::math::*;
 
 pub type Id = u32;
 
@@ -26,7 +24,7 @@ struct Style {
     window_padding: float2,
     frame_padding: float2
 }
-
+ 
 impl Style {
     pub fn new() -> Self {
         Style {

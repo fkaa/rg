@@ -2,11 +2,14 @@
 name = "rg"
 version = "0.1.0"
 authors = ["Felix Kaaman <trundmatu@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 crc = "1.5.0"
 bitflags = "1.0"
-rusttype = "0.2.3"
+font-kit = "0.1.0"
+rect_packer = "0.2"
+euclid = "0.19"
 
 [dev-dependencies.winapi]
 version = "0.3"
