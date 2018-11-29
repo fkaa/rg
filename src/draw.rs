@@ -1,11 +1,11 @@
 use crate::math::*;
 
 use rect_packer::{
-    DensePacker,
+    Packer,
     Rect,
 };
 
-pub type Texture = *const ();
+pub type TextureHandle = *mut ();
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -27,12 +27,15 @@ impl Vertex {
 
 pub trait Renderer {
     fn render(&mut self, list: &DrawList);
+    
+    fn create_texture_a8(&mut self, width: u32, height: u32) -> (TextureHandle, TextureHandle);
+    fn upload_a8(&mut self, handle: TextureHandle, x: u32, y: u32, width: u32, height: u32, data: &[u8], stride: u32);
 }
 
 pub struct DrawCommand {
     pub index_count: u32,
     clip_rect: float4,
-    pub texture_id: Texture,
+    pub texture_id: TextureHandle,
 }
 
 impl DrawCommand {
@@ -40,60 +43,271 @@ impl DrawCommand {
         DrawCommand {
             index_count: 0,
             clip_rect: float4(0f32, 0f32, 800f32, 800f32),
-            texture_id: ::std::ptr::null() as _
+            texture_id: ::std::ptr::null_mut() as _
         }
     }
 }
 
+
 pub struct FontAtlasPage {
-    packer: DensePacker
+    texture_handle: TextureHandle,
+    srv_handle: TextureHandle,
+    packer: Packer,
+    full: bool,
 }
 
+impl FontAtlasPage {
+    pub fn new(renderer: &mut Renderer, size: u32) -> Self {
+        let (texture_handle, srv_handle) = renderer.create_texture_a8(size, size);
+
+        let config = rect_packer::Config {
+            width: size as i32,
+            height: size as i32,
+
+            border_padding: 1,
+            rectangle_padding: 1,
+        };
+        
+        FontAtlasPage {
+            texture_handle,
+            srv_handle,
+            packer: Packer::new(config),
+            full: false,
+        }
+    }
+
+    pub fn pack(&mut self, w: i32, h: i32) -> Option<(u32, u32, u32, u32)> {
+        if self.full {
+            return None;
+        }
+
+        if let Some(Rect { x, y, width, height }) = self.packer.pack(w, h, false) {
+            Some((x as u32, y as u32, width as u32, height as u32))
+        } else {
+            self.full = true;
+            
+            None
+        }
+    }
+}
+
+pub struct FontAtlas {
+    pages: Vec<FontAtlasPage>,
+    size: u32,
+}
+
+impl FontAtlas {
+    pub fn new(size: u32) -> Self {
+        FontAtlas {
+            pages: Vec::new(),
+            size
+        }
+    }
+
+    pub fn pack(&mut self, renderer: &mut Renderer, width: i32, height: i32) -> Option<(usize, u32, u32, u32, u32)> {
+        assert!(width < self.size as i32);
+        assert!(height < self.size as i32);
+
+        let mut dims = None;
+        let mut index = 0;
+
+        'outer: loop {
+            index = 0;
+            for page in &mut self.pages {
+                dims = page.pack(width, height);
+
+                if dims.is_some() {
+                    break 'outer;
+                }
+                
+                index += 1;
+            }
+
+            self.pages.push(FontAtlasPage::new(renderer, self.size));
+        }
+
+        if let Some((a, b, c, d)) = dims {
+            Some((index, a, b, c, d))
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Default, Copy, Clone)]
 pub struct FontGlyph {
-    id: u16,
-    x: u16,
-    y: u16,
-    w: u16,
-    h: u16,
-    y_offset: i16,
-    x_offset: i16,
-    x_advance: i16,
+    page: u16,
+    
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    x_advance: f32,
+
+    u: f32,
+    v: f32,
+    u_2: f32,
+    v_2: f32,
+}
+
+impl FontGlyph {
+    pub fn new() -> Self {
+        FontGlyph {
+            ..
+            ::std::default::Default::default()
+        }
+    }
 }
 
 pub struct Font {
     name: String,
     rasterize_cache: font_kit::canvas::Canvas,
     font_face: font_kit::font::Font,
-    
-    font_instances: Vec<FontInstance>,
+    font_size: f32,
+    font_factor: f32,
+    pub metrics: font_kit::metrics::Metrics,
+
+    font_atlas: FontAtlas,
+    glyph_indices: Vec<u16>,
+    glyphs: Vec<FontGlyph>,
 }
 
 impl Font {
-    pub fn new(name: String, handle: &font_kit::handle::Handle) -> Result<Self, font_kit::error::FontLoadingError> {
+    pub fn new(name: String, handle: &font_kit::handle::Handle, font_size: f32) -> Result<Self, font_kit::error::FontLoadingError> {
         let font_face = font_kit::font::Font::from_handle(handle)?;
+        let metrics = font_face.metrics();
         
         Ok(Font {
             name,
-            rasterize_cache: font_kit::canvas::Canvas::new(&euclid::Size2D::new(32u32, 32u32), font_kit::canvas::Format::A8),
+            rasterize_cache: font_kit::canvas::Canvas::new(&euclid::Size2D::new(128u32, 128u32), font_kit::canvas::Format::A8),
             font_face,
-            font_instances: Vec::new(),
+            font_size,
+            font_factor: font_size / metrics.units_per_em as f32,// / font_size,
+            metrics,
+
+            font_atlas: FontAtlas::new(1024),
+            
+            glyph_indices: vec![0u16; u16::max_value() as usize],
+            glyphs: vec![FontGlyph::new()],
         })
     }
-}
 
-pub struct FontInstance {
-    font_size: u32,
-    glyphs: Vec<FontGlyph>
-}
+    fn create_glyph(&mut self, renderer: &mut Renderer, id: u16) -> Option<FontGlyph> {
+        let glyph_id = self.font_face.glyph_for_char(::std::char::from_u32(id as u32)?)?;
+        let font_size = self.font_size;
+        let hinting = font_kit::hinting::HintingOptions::None;
+        let raster = font_kit::canvas::RasterizationOptions::GrayscaleAa;
+        
+        let glyph_bounds = self.font_face.raster_bounds(
+            glyph_id,
+            self.font_size,
+            &euclid::Point2D::zero(),
+            hinting,
+            raster,
+        ).ok()?;
 
-pub struct FontAtlas {
-    pages: Vec<FontAtlasPage>,
-    fonts: Vec<Font>,
-}
+        if glyph_bounds.size.width == 0 && glyph_bounds.size.height == 0 {
+            let advance = self.font_face.advance(glyph_id).ok()?;
+            
+            let glyph = FontGlyph {
+                page: 0u16,
+                
+                x: 0f32,
+                y: 0f32,
+                w: 0f32,
+                h: 0f32,
+                x_advance: advance.x,
 
-impl FontAtlas {
-    pub fn new(size: u32) -> Self {
-    
+                u: 0f32,
+                v: 0f32,
+                u_2: 0f32,
+                v_2: 0f32,
+            };
+
+            // add glyph
+            let idx = self.glyphs.len();
+            self.glyph_indices[id as usize] = idx as u16;
+            self.glyphs.push(glyph);
+
+            Some(glyph)
+        } else {
+            for pixel in &mut self.rasterize_cache.pixels {
+                *pixel = 0;
+            }
+
+            self.font_face.rasterize_glyph(
+                &mut self.rasterize_cache,
+                glyph_id,
+                self.font_size,
+                &euclid::Point2D::zero(),
+                hinting,
+                raster,
+            ).ok()?;
+
+            let advance = self.font_face.advance(glyph_id).ok()?;
+            let origin = self.font_face.origin(glyph_id).ok()?;
+            
+            let (idx, x, y, width, height) = self.font_atlas.pack(
+                renderer,
+                glyph_bounds.size.width,
+                glyph_bounds.size.height
+            )?;
+
+            let tex_handle = self.font_atlas.pages[idx].texture_handle;
+            // let srv_handle = self.font_atlas.pages[idx].srv_handle;
+            renderer.upload_a8(
+                tex_handle,
+                x,
+                y,
+                width,
+                height,
+                &self.rasterize_cache.pixels,
+                self.rasterize_cache.stride as u32
+            );
+
+            let size = self.font_atlas.size as f32;
+            let u = x as f32 / size;
+            let v = y as f32 / size;
+            let u_2 = (x + width) as f32 / size;
+            let v_2 = (y + height) as f32 / size;
+
+            let bounds = self.font_face.typographic_bounds(glyph_id).ok()?;
+            let ratio = self.font_size / self.metrics.units_per_em as f32;
+
+            println!("{}: {}", id, (bounds.origin.y - advance.y) * ratio); 
+            
+            let glyph = FontGlyph {
+                page: idx as u16,
+                
+                x: bounds.origin.x as f32 * ratio,
+                y: (bounds.origin.y as f32 - advance.y) * ratio,
+                w: glyph_bounds.size.width as f32,
+                h: glyph_bounds.size.height as f32,
+                x_advance: advance.x,
+
+                u,
+                v,
+                u_2,
+                v_2,
+            };
+
+            // add glyph
+            let idx = self.glyphs.len();
+            self.glyph_indices[id as usize] = idx as u16;
+            self.glyphs.push(glyph);
+
+            Some(glyph)
+        }
+    }
+
+    pub fn get_glyph(&mut self, renderer: &mut Renderer, id: u16) -> Option<FontGlyph> {
+        let idx = self.glyph_indices[id as usize];
+
+        if idx == 0 {
+            self.create_glyph(renderer, id)
+        } else {
+            Some(self.glyphs[idx as usize])
+        }
     }
 }
 
@@ -106,7 +320,7 @@ pub struct DrawList {
     path: Vec<float2>,
 
     clip_stack: Vec<float4>,
-    texture_stack: Vec<Texture>
+    texture_stack: Vec<TextureHandle>
 }
 
 pub struct PathBuilder<'a> {
@@ -204,6 +418,7 @@ impl DrawList {
     }
 
     pub fn clear(&mut self) {
+        self.commands.clear();
         self.index_offset = 0;
         self.vertices.clear();
         self.indices.clear();
@@ -225,7 +440,16 @@ impl DrawList {
         self.clip_stack.pop();
     }
 
-    pub fn push_texture(&mut self, texture: Texture) {
+    pub fn set_texture(&mut self, texture: TextureHandle) {
+        if self.current_cmd().texture_id == ::std::ptr::null_mut() {
+            self.current_cmd().texture_id = texture;
+        } else if self.current_cmd().texture_id != texture {
+            self.push_draw_cmd();
+            self.current_cmd().texture_id = texture;
+        }
+    }
+    
+    pub fn push_texture(&mut self, texture: TextureHandle) {
         self.texture_stack.push(texture);
 
         let current_tex = self.current_cmd().texture_id;
@@ -279,8 +503,46 @@ impl DrawList {
         self.path_rect(a, b, rounding).fill(color);
     }
 
-    pub fn add_text(&mut self, pos: float2, color: u32, text: &str) {
-        // TODO
+    pub fn add_text(&mut self, renderer: &mut Renderer, font: &mut Font, text: &str, pos: float2, color: u32) {
+        let mut cursor_x = pos.0;
+        let mut cursor_y = pos.1;
+
+        for ch in text.chars() {
+            if ch == '\n' {
+                cursor_y += (font.font_size / (font.metrics.ascent + font.metrics.descent)) * font.metrics.ascent;
+                cursor_x = pos.0;
+                continue;
+            }
+            if let Some(glyph) = font.get_glyph(renderer, ch as u16) {
+                let texture = font.font_atlas.pages[glyph.page as usize].srv_handle;
+                self.set_texture(texture);
+
+                let cursor_y = cursor_y.ceil();
+                
+                let x = (cursor_x + glyph.x).round();
+                let y = (cursor_y - glyph.y).round();
+                let w = x + glyph.w;
+                let h = y - glyph.h;
+                
+                self.vertices.push(Vertex::new(float2(x, y), float2(glyph.u,   glyph.v_2), color));
+                self.vertices.push(Vertex::new(float2(x, h), float2(glyph.u,   glyph.v),   color));
+                self.vertices.push(Vertex::new(float2(w, h), float2(glyph.u_2, glyph.v),   color));
+                self.vertices.push(Vertex::new(float2(w, y), float2(glyph.u_2, glyph.v_2), color));
+
+                cursor_x += glyph.x_advance * font.font_factor;
+                
+                let offset = self.index_offset as u16;                
+                self.indices.push(offset + 0);
+                self.indices.push(offset + 1);
+                self.indices.push(offset + 2);
+                self.indices.push(offset + 0);
+                self.indices.push(offset + 2);
+                self.indices.push(offset + 3);
+                
+                self.index_offset += 4;
+                self.current_cmd().index_count += 6;
+            }
+        }
     }
 
     pub fn add_poly_line(&mut self, thickness: f32, closed: bool, color: u32) {
@@ -378,11 +640,17 @@ impl DrawList {
     }
 
     fn current_cmd(&mut self) -> &mut DrawCommand {
-        self.commands.last_mut().unwrap()
+        if self.commands.len() > 0 {
+            self.commands.last_mut().unwrap()
+        } else {
+            self.commands.push(DrawCommand::new());
+
+            self.commands.last_mut().unwrap()
+        }
     }
 
-    fn current_texture(&self) -> Texture {
-        self.texture_stack.last().cloned().unwrap_or(::std::ptr::null() as *const () as Texture)
+    fn current_texture(&self) -> TextureHandle {
+        self.texture_stack.last().cloned().unwrap_or(::std::ptr::null() as *const () as TextureHandle)
     }
 
     fn current_clip_rect(&self) -> float4 {

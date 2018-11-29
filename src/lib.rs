@@ -12,12 +12,78 @@ pub fn hash_id(val: &str) -> Id {
     crc::crc32::checksum_castagnoli(val.as_bytes()) as Id
 }
 
-struct Window<'a> {
-    name: &'a str,
+struct WindowPerFrameData {
+    cursor: float2,
+    cursor_prev_line: float2,
+    cursor_max_pos: float2,
+    indent: f32,
+    current_text_base_offset: f32,
+}
+
+impl WindowPerFrameData {
+    pub fn new() -> Self {
+        WindowPerFrameData {
+            cursor: float2(0f32, 0f32),
+            cursor_prev_line: float2(0f32, 0f32),
+            cursor_max_pos: float2(0f32, 0f32),
+            indent: 0f32,
+            current_text_base_offset: 0f32,
+        }
+    }
+}
+
+struct Window {
+    name: String,
     id: Id,
+    
     pos: float2,
     size: float2,
 
+    content_region: Rect,
+    clip_rect: Rect,
+
+    data: WindowPerFrameData,
+    storage: WindowStorage,
+}
+
+impl Window {
+    pub fn new(label: String) -> Self {
+        Window {
+            name: label,
+            id: 0,
+
+            pos: float2(0f32, 0f32),
+            size: float2(0f32, 0f32),
+
+            content_region: Rect::new(float2(0f32, 0f32), float2(0f32, 0f32)),
+            clip_rect: Rect::new(float2(0f32, 0f32), float2(0f32, 0f32)),
+
+            data: WindowPerFrameData::new(),
+            storage: WindowStorage::new(),
+        }
+    }
+
+    pub fn is_clipped(&self, bounding_box: Rect) -> bool {
+        self.clip_rect.outside(bounding_box)
+    }
+}
+
+union StorageValue {
+    pub integer: i32,
+    pub float: f32,
+    pub ptr: *mut (),
+}
+
+struct WindowStorage {
+    pairs: Vec<(Id, StorageValue)>,
+}
+
+impl WindowStorage {
+    pub fn new() -> Self {
+        Self {
+            pairs: Vec::new(),
+        }
+    }
 }
 
 struct Style {
@@ -35,7 +101,7 @@ impl Style {
 }
 
 struct ContextDrawInfo {
-    cursor: float2
+    cursor: float2,
 }
 
 struct IoState {
@@ -53,34 +119,43 @@ struct IoState {
 
 }
 
-pub struct Context<'a> {
-    windows: Vec<Window<'a>>,
+pub struct Context {
+    windows: Vec<Window>,
     window_stack: Vec<usize>,
     current_window: Option<usize>,
     style: Style,
+    default_font: Font,
 
     draw_list: DrawList,
     renderer: Box<Renderer>,
 }
 
-impl<'a> Context<'a> {
+impl Context {
     pub fn new(renderer: Box<Renderer>) -> Self {
+        // println!("{:#?}", font_kit::sources::fs::FsSource::new().all_families());
+        let family = font_kit::sources::fs::FsSource::new()
+            .select_family_by_name("Calibri")
+            .unwrap();
+        let handle = &family.fonts()[0];
+        let default_font = Font::new(String::from("Test"), &handle, 24f32).unwrap();
+        
         Context {
             windows: Vec::new(),
             window_stack: Vec::new(),
             current_window: None,
             style: Style::new(),
+            default_font,
 
             draw_list: DrawList::new(),
             renderer,
         }
     }
     
-    pub fn begin(&mut self, name: &'a str) -> bool {
-        let window_idx = if let Some(wnd) = self.find_window(name) {
-            wnd
+    pub fn begin(&mut self, name: &str) -> bool {
+        let (first_use, window_idx) = if let Some(wnd) = self.find_window(name) {
+            (false, wnd)
         } else {
-            self.create_window(name)
+            (true, self.create_window(name))
         };
 
         self.window_stack.push(window_idx);
@@ -94,12 +169,34 @@ impl<'a> Context<'a> {
         self.current_window = self.window_stack.last().cloned();
     }
 
-    pub fn button(&mut self, label: &'a str) -> bool {
+    pub fn button(&mut self, label: &str) -> bool {
         true
     }
 
     pub fn text(&mut self, text: &str) {
+        let wnd = self.current_window();
+
+        let wrap_width = 200f32;
         
+        let text_pos = float2(wnd.data.cursor.x, wnd.data.cursor.y + wnd.data.current_text_base_offset);
+        let text_size = self.default_font.calculate_text_size(text, Some(wrap_width));
+
+        let text_bounds = Rect::new(text_pos, text_pos + text_size);
+        
+        self.item_size(text_size);
+        if !self.item_add(text_bounds) {
+            return;
+        }
+        
+        self.draw_list.add_text_wrapped(
+            &mut *self.renderer,
+            &mut self.default_font,
+            text,
+            text_size,
+            0xffffffff
+        );
+        //let s = format!("{:#?}", self.default_font.metrics);
+        //self.draw_list.add_text(&mut *self.renderer, &mut self.default_font, &s, float2(100f32, 100f32), 0xffffffff);
     }
 
     pub fn draw(&mut self) {
@@ -107,23 +204,30 @@ impl<'a> Context<'a> {
         self.draw_list.clear();
     }
     
-    fn item_size(&mut self, bb: float4, padding: f32) {
-        // TODO: advance draw state
+    fn item_size(&mut self, size: float2) {
+        let window = self.current_window_mut();
+
+        let line_height = 14f32;
+        
+        window.data.cursor_prev_line = float2(window.data.cursor.0 + size.0, window.data.cursor.1);
+        window.data.cursor = float2(
+            window.pos.0 + window.data.indent,
+            window.data.cursor.1 + line_height,
+        );
+        window.data.cursor_max_pos = float2(
+            window.data.cursor_max_pos.0.max(window.data.cursor_prev_line.0),
+            window.data.cursor_max_pos.1.max(window.data.cursor.1),
+        );
     }
 
-    fn item_add(&mut self, bb: float4, id: Option<Id>) -> bool {
-        // TODO: clipping
-
-        false
+    fn item_add(&mut self, bb: Rect, id: Option<Id>) -> bool {
+        let window = self.current_window();
+        
+        window.is_clipped(bb)
     }
 
-    fn create_window(&mut self, name: &'a str) -> usize {
-        let wnd = Window {
-            name,
-            id: hash_id(name),
-            pos: float2(0f32, 0f32),
-            size: float2(100f32, 100f32)
-        };
+    fn create_window(&mut self, name: &str) -> usize {
+        let wnd = Window::new(name.into());
         let idx = self.windows.len();
 
         self.windows.push(wnd);
@@ -135,5 +239,13 @@ impl<'a> Context<'a> {
         let id = hash_id(name);
 
         self.windows.iter().position(|ref wnd| wnd.id == id)
+    }
+
+    fn current_window(&self) -> &Window {
+        &self.windows[self.window_stack[self.window_stack.len() - 1]]
+    }
+
+    fn current_window_mut(&mut self) -> &mut Window {
+        &mut self.windows[self.window_stack[self.window_stack.len() - 1]]
     }
 }

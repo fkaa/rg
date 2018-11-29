@@ -16,6 +16,7 @@ use winapi::Interface;
 
 use rg::Renderer;
 use rg::Context;
+use rg::TextureHandle;
 
 macro_rules! c_str {
     ($str:expr) => (concat!($str, '\0').as_ptr() as *const i8)
@@ -37,7 +38,9 @@ struct RgDx11Renderer {
     vertex_buffer: *mut ID3D11Buffer,
     index_buffer: *mut ID3D11Buffer,
 
+    depth: *mut ID3D11DepthStencilState,
     blend: *mut ID3D11BlendState,
+    raster: *mut ID3D11RasterizerState,
 }
 
 impl RgDx11Renderer {
@@ -216,6 +219,27 @@ impl RgDx11Renderer {
             blend
         };
 
+        let raster = unsafe {
+            let mut raster: *mut ID3D11RasterizerState = ::std::ptr::null_mut();
+
+            let mut desc: D3D11_RASTERIZER_DESC = ::std::mem::zeroed();
+            desc.FillMode = D3D11_FILL_SOLID;
+
+            (*device).CreateRasterizerState(&desc, &mut raster as *mut *mut _ as *mut *mut _);
+
+            raster
+        };
+
+        let depth = unsafe {
+            let mut depth: *mut ID3D11DepthStencilState = ::std::ptr::null_mut();
+
+            let mut desc: D3D11_DEPTH_STENCIL_DESC = ::std::mem::zeroed();
+
+            (*device).CreateDepthStencilState(&desc, &mut depth as *mut *mut _ as *mut *mut _);
+
+            depth
+        };
+        
         RgDx11Renderer {
             device,
             context,
@@ -227,9 +251,12 @@ impl RgDx11Renderer {
             camera_buffer,
             vertex_buffer,
             index_buffer,
-            blend
+            depth,
+            blend,
+            raster,
         }
     }
+
 }
 
 impl rg::Renderer for RgDx11Renderer {
@@ -265,6 +292,7 @@ impl rg::Renderer for RgDx11Renderer {
             ::std::ptr::copy_nonoverlapping::<u16>(list.indices.as_ptr(), data.pData as _, list.indices.len());
             (*cxt).Unmap(self.index_buffer as _, 0);
 
+            (*cxt).RSSetState(self.raster);
             (*cxt).IASetInputLayout(self.layout);
 
             (*cxt).IASetVertexBuffers(0, 1, &mut self.vertex_buffer as *mut *mut _, &(::std::mem::size_of::<rg::Vertex>() as u32), &0);
@@ -278,20 +306,90 @@ impl rg::Renderer for RgDx11Renderer {
             (*cxt).PSSetShaderResources(0, 1, &self.texture as *const *mut _);
 
             (*cxt).OMSetBlendState(self.blend, &[0f32, 0f32, 0f32, 0f32], 0xffffffff);
+            (*cxt).OMSetDepthStencilState(self.depth, 0xff);
 
             let mut index_offset = 0;
             for command in list.commands() {
-                // (*cxt).PSSetShaderResources(0, 1, &command.texture_id as *const *mut _);
+                (*cxt).PSSetShaderResources(0, 1, &command.texture_id as *const *mut _ as *const *mut _ );
                 (*cxt).DrawIndexed(command.index_count, index_offset, 0);
 
                 index_offset += command.index_count;
             }
         }
     }
+
+    
+    fn create_texture_a8(&mut self, width: u32, height: u32) -> (TextureHandle, TextureHandle) {
+        unsafe {
+           let mut res: *mut ID3D11Texture2D = ::std::ptr::null_mut();
+
+            let desc = D3D11_TEXTURE2D_DESC {
+                Width: width,
+                Height: height,
+                MipLevels: 1,
+                ArraySize: 1,
+                Format: DXGI_FORMAT_R8_UNORM,
+                SampleDesc: DXGI_SAMPLE_DESC {
+                    Count: 1,
+                    Quality: 0
+                },
+                Usage: D3D11_USAGE_DEFAULT,
+                BindFlags: D3D11_BIND_SHADER_RESOURCE,
+                CPUAccessFlags: 0,
+                MiscFlags: 0
+            };
+
+            (*self.device).CreateTexture2D(
+                &desc,
+                ::std::ptr::null_mut(),
+                &mut res as *mut *mut _ as *mut *mut _
+            );
+
+            let mut srv: *mut ID3D11ShaderResourceView = ::std::ptr::null_mut();
+
+            let desc = {
+                let mut desc: D3D11_SHADER_RESOURCE_VIEW_DESC = ::std::mem::zeroed();
+
+                desc.Format = DXGI_FORMAT_R8_UNORM;
+                desc.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D;
+
+                (*desc.u.Texture2D_mut()) = D3D11_TEX2D_SRV {
+                    MostDetailedMip: 0,
+                    MipLevels: 1
+                };
+
+                desc
+            };
+
+            (*self.device).CreateShaderResourceView(res as _, &desc, &mut srv as *mut *mut _ as *mut *mut _);
+
+            (res as TextureHandle, srv as TextureHandle)
+        }
+    }
+    
+    fn upload_a8(&mut self, handle: TextureHandle, x: u32, y: u32, width: u32, height: u32, data: &[u8], stride: u32) {
+        unsafe {
+            (*self.context).UpdateSubresource(
+                handle as *mut _,
+                0,
+                &D3D11_BOX {
+                    left: x,
+                    top: y,
+                    front: 0,
+                    right: x + width,
+                    bottom: y + height,
+                    back: 1,
+                },
+                data.as_ptr() as *const _,
+                stride,
+                0
+            );
+        }
+    }
 }
 
-const WIDTH: i32 = 1280;
-const HEIGHT: i32 = 720;
+const WIDTH: i32 = 800;
+const HEIGHT: i32 = 600;
 
 fn main() {
     let mut list = rg::DrawList::new();
@@ -327,7 +425,7 @@ fn main() {
         0xffffffff
     );
 
-    list.add_text(rg::float2(440f32, 414f32), 0xffffffff, "Test text!");
+    //list.add_text(rg::float2(440f32, 414f32), 0xffffffff, "Test text!");
 
 
     unsafe {

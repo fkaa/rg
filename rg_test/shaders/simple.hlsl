@@ -30,5 +30,5 @@ Texture2D Texture : register(t0);
 SamplerState Sampler : register(s0);
 
 float4 PS(PSInput input) : SV_Target0 {
-    return Texture.Sample(Sampler, input.uv) * input.color;
+    return float4(input.color.rgb, Texture.Sample(Sampler, input.uv).r * input.color.a);
 }

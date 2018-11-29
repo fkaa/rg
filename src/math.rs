@@ -1,5 +1,33 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign};
 
+#[derive(Copy, Clone)]
+pub struct Rect {
+    min: float2,
+    max: float2,
+}
+
+impl Rect {
+    pub fn new(min: float2, max: float2) -> Self {
+        Rect {
+            min,
+            max,
+        }
+    }
+
+    pub fn contains(&self, point: float2) -> bool {
+        (self.min.0 < point.0 && self.min.1 < point.1) ||
+        (self.max.0 > point.0 && self.max.1 > point.1)
+    }
+
+    pub fn outside(&self, other: Rect) -> bool {
+        unimplemented!()
+    }
+
+    pub fn clip(&self, other: Rect) -> Option<Rect> {
+        unimplemented!()
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone)]
 pub struct float4(pub f32, pub f32, pub f32, pub f32);

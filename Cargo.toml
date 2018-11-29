@@ -7,10 +7,13 @@ edition = "2018"
 [dependencies]
 crc = "1.5.0"
 bitflags = "1.0"
-font-kit = "0.1.0"
+font-kit = { path = '../font-kit' } # , features = ["loader-freetype-default"] }
 rect_packer = "0.2"
 euclid = "0.19"
 
 [dev-dependencies.winapi]
 version = "0.3"
 features = ["everything"]
+
+[patch.crates-io]
+font-kit = { path = '../font-kit' }
