@@ -178,7 +178,7 @@ impl Context {
 
         let wrap_width = 200f32;
         
-        let text_pos = float2(wnd.data.cursor.x, wnd.data.cursor.y + wnd.data.current_text_base_offset);
+        /*let text_pos = float2(wnd.data.cursor.0, wnd.data.cursor.1 + wnd.data.current_text_base_offset);
         let text_size = self.default_font.calculate_text_size(text, Some(wrap_width));
 
         let text_bounds = Rect::new(text_pos, text_pos + text_size);
@@ -194,7 +194,7 @@ impl Context {
             text,
             text_size,
             0xffffffff
-        );
+        );*/
         //let s = format!("{:#?}", self.default_font.metrics);
         //self.draw_list.add_text(&mut *self.renderer, &mut self.default_font, &s, float2(100f32, 100f32), 0xffffffff);
     }
