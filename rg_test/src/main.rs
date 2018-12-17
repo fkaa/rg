@@ -106,8 +106,8 @@ impl Texture {
             gl::BindTexture(gl::TEXTURE_2D, handle);
             gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format as i32, width as i32, height as i32, 0, format as u32, gl::UNSIGNED_BYTE, data.as_ptr() as *const _);
 
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, filter as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, filter as i32);
         }
@@ -442,6 +442,12 @@ impl RgOpenGlRenderer {
 
 impl rg::Renderer for RgOpenGlRenderer {
     fn render(&mut self, list: &rg::DrawList) {
+        unsafe {
+            gl::Disable(gl::DEPTH_TEST);
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+        }
+        
         let ortho = {
             let l = 0f32;
             let r = WIDTH as f32;
@@ -500,8 +506,8 @@ impl rg::Renderer for RgOpenGlRenderer {
             &zeroed,
             width,
             height,
-            gl::RGBA8,
-            gl::RGBA,
+            gl::R8,
+            gl::RED,
             gl::LINEAR
         );
 
@@ -513,6 +519,21 @@ impl rg::Renderer for RgOpenGlRenderer {
     }
     
     fn upload_a8(&mut self, handle: TextureHandle, x: u32, y: u32, width: u32, height: u32, data: &[u8], stride: u32) {
+        let handle = handle as u32;
+
+        unsafe {
+            gl::PixelStorei(gl::UNPACK_ROW_LENGTH, stride as i32);
+            gl::BindTexture(gl::TEXTURE_2D, handle);
+            gl::TexSubImage2D(
+                gl::TEXTURE_2D,
+                0,
+                x as i32, y as i32,
+                width as i32, height as i32,
+                gl::RED,
+                gl::UNSIGNED_BYTE,
+                data.as_ptr() as *const _
+            );
+        }
         /*unsafe {
             (*self.context).UpdateSubresource(
                 handle as *mut _,
@@ -559,6 +580,7 @@ fn main() {
         gl::ClearDepth(1.0);
         gl::Viewport(0, 0, WIDTH, HEIGHT);
         gl::Enable(gl::DEPTH_TEST);
+        //gl::Enable(gl::FRAMEBUFFER_SRGB);
     }
 
     
@@ -569,24 +591,31 @@ fn main() {
     let mut running = true;
     
     while running {
+        cxt.begin_frame();
+
         events_loop.poll_events(|event| {
             //cxt.nom_nom(event);
         });
 
+        
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
         
-        if cxt.begin("Test") {
+        if cxt.begin("Test Window") {
             if cxt.button("Press me!") {
                 press_count += 1;
             }
-            cxt.text(&format!("Pressed {} times", press_count));
+            //cxt.text(&format!("Pressed {} times", press_count));
+            //cxt.text(&format!("Pressed {} times", press_count));
+            //cxt.text(&format!("Pressed {} times", press_count));
+            cxt.text("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
             
             cxt.end();
         }
 
         cxt.draw();
+        cxt.end_frame();
 
         gl_window.swap_buffers().unwrap();
     }

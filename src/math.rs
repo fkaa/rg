@@ -1,9 +1,9 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Rect {
-    min: float2,
-    max: float2,
+    pub min: float2,
+    pub max: float2,
 }
 
 impl Rect {
@@ -15,12 +15,12 @@ impl Rect {
     }
 
     pub fn contains(&self, point: float2) -> bool {
-        (self.min.0 < point.0 && self.min.1 < point.1) ||
-        (self.max.0 > point.0 && self.max.1 > point.1)
+        (self.min.0 <= point.0 && self.min.1 <= point.1) ||
+        (self.max.0 >= point.0 && self.max.1 >= point.1)
     }
 
     pub fn outside(&self, other: Rect) -> bool {
-        unimplemented!()
+        !self.contains(other.min) && !self.contains(other.max)
     }
 
     pub fn clip(&self, other: Rect) -> Option<Rect> {
@@ -29,7 +29,7 @@ impl Rect {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct float4(pub f32, pub f32, pub f32, pub f32);
 
 impl Add for float4 {
@@ -89,7 +89,7 @@ impl DivAssign for float4 {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct float2(pub f32, pub f32);
 
 impl float2 {

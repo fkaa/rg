@@ -67,11 +67,15 @@ impl FontAtlasPage {
             border_padding: 1,
             rectangle_padding: 1,
         };
+        let mut packer = Packer::new(config);
+        packer.pack(2, 2, false);
+        let pixel = [0xff, 0xff, 0xff, 0xff];
+        renderer.upload_a8(texture_handle, 0, 0, 2, 2, &pixel, 2);
         
         FontAtlasPage {
             texture_handle,
             srv_handle,
-            packer: Packer::new(config),
+            packer,
             full: false,
         }
     }
@@ -134,7 +138,7 @@ impl FontAtlas {
     }
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct FontGlyph {
     page: u16,
     
@@ -163,8 +167,8 @@ pub struct Font {
     name: String,
     rasterize_cache: font_kit::canvas::Canvas,
     font_face: font_kit::font::Font,
-    font_size: f32,
-    font_factor: f32,
+    pub font_size: f32,
+    pub font_factor: f32,
     pub metrics: font_kit::metrics::Metrics,
 
     font_atlas: FontAtlas,
@@ -205,6 +209,8 @@ impl Font {
             hinting,
             raster,
         ).ok()?;
+
+        println!("raster_bounds: {:?}", glyph_bounds);
 
         if glyph_bounds.size.width == 0 && glyph_bounds.size.height == 0 {
             let advance = self.font_face.advance(glyph_id).ok()?;
@@ -274,13 +280,13 @@ impl Font {
             let bounds = self.font_face.typographic_bounds(glyph_id).ok()?;
             let ratio = self.font_size / self.metrics.units_per_em as f32;
 
-            println!("{}: {}", id, (bounds.origin.y - advance.y) * ratio); 
+            println!("{}: {}", id, bounds.origin.y * ratio); 
             
             let glyph = FontGlyph {
                 page: idx as u16,
                 
-                x: bounds.origin.x as f32 * ratio,
-                y: (bounds.origin.y as f32 - advance.y) * ratio,
+                x: glyph_bounds.origin.x as f32,
+                y: glyph_bounds.origin.y as f32,
                 w: glyph_bounds.size.width as f32,
                 h: glyph_bounds.size.height as f32,
                 x_advance: advance.x,
@@ -290,6 +296,8 @@ impl Font {
                 u_2,
                 v_2,
             };
+
+            println!("{:#?}", glyph);
 
             // add glyph
             let idx = self.glyphs.len();
@@ -308,6 +316,39 @@ impl Font {
         } else {
             Some(self.glyphs[idx as usize])
         }
+    }
+
+    pub fn calculate_text_size(&mut self, renderer: &mut Renderer, text: &str, wrap: Option<f32>) -> float2 {
+        let mut cursor_x = 0f32;
+        let mut cursor_y = 0f32;
+
+        let mut max_x = 0f32;
+
+        let advance_y = (self.font_size / (self.metrics.ascent + self.metrics.descent)) * self.metrics.ascent;
+
+        for ch in text.chars() {
+            if ch == '\n' {
+                cursor_y += advance_y;
+                cursor_x = 0f32;
+                continue;
+            }
+            
+            if let Some(glyph) = self.get_glyph(renderer, ch as u16) {
+                let advance = glyph.x_advance * self.font_factor;
+
+                cursor_x += advance;
+                if let Some(wrap) = wrap {
+                    if cursor_x >= wrap {
+                        cursor_y += advance_y;
+                        cursor_x = advance;
+                    }
+                }
+            }
+
+            max_x = max_x.max(cursor_x);
+        }
+
+        float2(max_x, cursor_y + advance_y)
     }
 }
 
@@ -328,14 +369,14 @@ pub struct PathBuilder<'a> {
 }
 
 fn build_arc_lut() -> [float2; 12] {
-    /*let mut arr = [float2(0f32, 0f32); 12];
+    let mut arr = [float2(0f32, 0f32); 12];
     for x in 0..12 {
         let a = ((x as f32) / 12f32) * ::std::f32::consts::PI * 2f32;
         arr[x] = float2(a.cos(), a.sin());
     }
-    arr*/
+    arr
     
-    use ::std::f32::consts::PI;
+    /*use ::std::f32::consts::PI;
     
     [
         float2(0f32, 0f32),
@@ -350,7 +391,7 @@ fn build_arc_lut() -> [float2; 12] {
         float2((9f32 / 12f32 * PI * 2f32).cos(), (9f32 / 12f32 * PI * 2f32).sin()),
         float2((10f32 / 12f32 * PI * 2f32).cos(), (10f32 / 12f32 * PI * 2f32).sin()),
         float2((11f32 / 12f32 * PI * 2f32).cos(), (11f32 / 12f32 * PI * 2f32).sin()),
-    ]
+    ]*/
 }
 
 impl<'a> PathBuilder<'a> {
@@ -464,14 +505,14 @@ impl DrawList {
 
     pub fn add_line(&mut self, a: float2, b: float2, color: u32) {
         self.path()
-            .line(a)
-            .line(b)
+            .line(a + float2(0.5, 0.5))
+            .line(b + float2(0.5, 0.5))
             .stroke(1f32, false, color);
     }
 
     fn path_rect(&mut self, a: float2, b: float2, rounding: f32) -> PathBuilder {
-        let a = a + float2(0.5f32, 0.5f32);
-        let b = b - float2(0.5f32, 0.5f32);
+        let a = a + float2(0.0f32, 0.0f32);
+        let b = b - float2(0.0f32, 0.0f32);
         if rounding <= 0f32 {
             self.path()
                 .line(a)
@@ -496,7 +537,11 @@ impl DrawList {
     }
 
     pub fn add_rect(&mut self, a: float2, b: float2, rounding: f32, thickness: f32, color: u32) {
-        self.path_rect(a, b, rounding).stroke(thickness, true, color);
+        self.path_rect(
+            a + float2(0.5, 0.5),
+            b - float2(0.5, 0.5),
+            rounding
+        ).stroke(thickness, true, color);
     }
 
     pub fn add_rect_filled(&mut self, a: float2, b: float2, rounding: f32, color: u32) {
@@ -545,9 +590,57 @@ impl DrawList {
         }
     }
 
+    pub fn add_text_wrapped(&mut self, renderer: &mut Renderer, font: &mut Font, text: &str, pos: float2, wrap: f32, color: u32) {
+        let mut cursor_x = pos.0;
+        let mut cursor_y = pos.1;
+        let advance_y = (font.font_size / (font.metrics.ascent + font.metrics.descent)) * font.metrics.ascent;
+
+        for ch in text.chars() {
+            if ch == '\n' {
+                cursor_y += advance_y;
+                cursor_x = pos.0;
+                continue;
+            }
+            if let Some(glyph) = font.get_glyph(renderer, ch as u16) {
+                let texture = font.font_atlas.pages[glyph.page as usize].srv_handle;
+                self.set_texture(texture);
+
+                let cursor_y_ceil = cursor_y.ceil();
+                
+                let x = (cursor_x + glyph.x).round();
+                let y = (cursor_y_ceil - glyph.y).round();
+                let w = x + glyph.w;
+                let h = y - glyph.h;
+                
+                self.vertices.push(Vertex::new(float2(x, y), float2(glyph.u,   glyph.v_2), color));
+                self.vertices.push(Vertex::new(float2(x, h), float2(glyph.u,   glyph.v),   color));
+                self.vertices.push(Vertex::new(float2(w, h), float2(glyph.u_2, glyph.v),   color));
+                self.vertices.push(Vertex::new(float2(w, y), float2(glyph.u_2, glyph.v_2), color));
+
+                let advance = glyph.x_advance * font.font_factor;
+                cursor_x += advance;
+                if cursor_x >= wrap {
+                    cursor_y += advance_y;
+                    cursor_x = pos.0;
+                }
+                
+                let offset = self.index_offset as u16;                
+                self.indices.push(offset + 0);
+                self.indices.push(offset + 1);
+                self.indices.push(offset + 2);
+                self.indices.push(offset + 0);
+                self.indices.push(offset + 2);
+                self.indices.push(offset + 3);
+                
+                self.index_offset += 4;
+                self.current_cmd().index_count += 6;
+            }
+        }
+    }
+
     pub fn add_poly_line(&mut self, thickness: f32, closed: bool, color: u32) {
         // TEMP
-        let uv = float2(1f32, 1f32);
+        let uv = float2(0f32, 0f32);
 
         let vertex_count = self.path.len() * 4;
         let index_count = self.path.len() * 6;
@@ -602,7 +695,7 @@ impl DrawList {
 
     pub fn add_poly_fill(&mut self, color: u32) {
         // TEMP
-        let uv = float2(1f32, 1f32);
+        let uv = float2(0f32, 0f32);
 
         let vertex_count = self.path.len();
         let index_count = (self.path.len() - 2) * 3;
