@@ -5,6 +5,8 @@ use rect_packer::{
     Rect,
 };
 
+use unicode_segmentation::UnicodeSegmentation;
+
 pub type TextureHandle = *mut ();
 
 #[derive(Copy, Clone)]
@@ -26,6 +28,7 @@ impl Vertex {
 }
 
 pub trait Renderer {
+    fn resize(&mut self, width: f32, height: f32);
     fn render(&mut self, list: &DrawList);
     
     fn create_texture_a8(&mut self, width: u32, height: u32) -> (TextureHandle, TextureHandle);
@@ -591,49 +594,63 @@ impl DrawList {
     }
 
     pub fn add_text_wrapped(&mut self, renderer: &mut Renderer, font: &mut Font, text: &str, pos: float2, wrap: f32, color: u32) {
-        let mut cursor_x = pos.0;
-        let mut cursor_y = pos.1;
         let advance_y = (font.font_size / (font.metrics.ascent + font.metrics.descent)) * font.metrics.ascent;
 
-        for ch in text.chars() {
-            if ch == '\n' {
+        let mut cursor_x = pos.0;
+        let mut cursor_y = pos.1 + font.font_factor * font.metrics.ascent;
+
+        for word in text.split_word_bounds() {
+            let bounds = font.calculate_text_size(renderer, word, None);
+
+            if cursor_x + bounds.0 > wrap {
                 cursor_y += advance_y;
                 cursor_x = pos.0;
-                continue;
             }
-            if let Some(glyph) = font.get_glyph(renderer, ch as u16) {
-                let texture = font.font_atlas.pages[glyph.page as usize].srv_handle;
-                self.set_texture(texture);
 
-                let cursor_y_ceil = cursor_y.ceil();
-                
-                let x = (cursor_x + glyph.x).round();
-                let y = (cursor_y_ceil - glyph.y).round();
-                let w = x + glyph.w;
-                let h = y - glyph.h;
-                
-                self.vertices.push(Vertex::new(float2(x, y), float2(glyph.u,   glyph.v_2), color));
-                self.vertices.push(Vertex::new(float2(x, h), float2(glyph.u,   glyph.v),   color));
-                self.vertices.push(Vertex::new(float2(w, h), float2(glyph.u_2, glyph.v),   color));
-                self.vertices.push(Vertex::new(float2(w, y), float2(glyph.u_2, glyph.v_2), color));
-
-                let advance = glyph.x_advance * font.font_factor;
-                cursor_x += advance;
-                if cursor_x >= wrap {
+            for ch in word.chars() {
+                if ch == '\n' {
                     cursor_y += advance_y;
                     cursor_x = pos.0;
+                    continue;
                 }
-                
-                let offset = self.index_offset as u16;                
-                self.indices.push(offset + 0);
-                self.indices.push(offset + 1);
-                self.indices.push(offset + 2);
-                self.indices.push(offset + 0);
-                self.indices.push(offset + 2);
-                self.indices.push(offset + 3);
-                
-                self.index_offset += 4;
-                self.current_cmd().index_count += 6;
+                if let Some(glyph) = font.get_glyph(renderer, ch as u16) {
+                    let texture = font.font_atlas.pages[glyph.page as usize].srv_handle;
+                    self.set_texture(texture);
+
+                    let cursor_y_ceil = cursor_y.ceil();
+                    
+                    let x = (cursor_x + glyph.x).round();
+                    let y = (cursor_y_ceil - glyph.y).round();
+                    let w = x + glyph.w;
+                    let h = y - glyph.h;
+
+                    
+                    let advance = glyph.x_advance * font.font_factor;
+                    cursor_x += advance;
+                    if cursor_x >= wrap {
+                        cursor_y += advance_y;
+                        cursor_x = pos.0;
+                    }
+
+                    if w > 0f32 {
+                        self.vertices.push(Vertex::new(float2(x, y), float2(glyph.u,   glyph.v_2), color));
+                        self.vertices.push(Vertex::new(float2(x, h), float2(glyph.u,   glyph.v),   color));
+                        self.vertices.push(Vertex::new(float2(w, h), float2(glyph.u_2, glyph.v),   color));
+                        self.vertices.push(Vertex::new(float2(w, y), float2(glyph.u_2, glyph.v_2), color));
+
+                        
+                        let offset = self.index_offset as u16;                
+                        self.indices.push(offset + 0);
+                        self.indices.push(offset + 1);
+                        self.indices.push(offset + 2);
+                        self.indices.push(offset + 0);
+                        self.indices.push(offset + 2);
+                        self.indices.push(offset + 3);
+                        
+                        self.index_offset += 4;
+                        self.current_cmd().index_count += 6;
+                    }
+                }
             }
         }
     }

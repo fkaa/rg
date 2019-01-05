@@ -14,8 +14,26 @@ impl Rect {
         }
     }
 
+    pub fn width(&self) -> f32 {
+        self.max.0 - self.min.0
+    }
+
+    pub fn height(&self) -> f32 {
+        self.max.1 - self.min.1
+    }
+
+    pub fn pad(&self, amt: f32) -> Rect {
+        Rect::new(
+            self.min + float2(amt, amt),
+            self.max - float2(amt, amt),
+        )
+    }
+    pub fn center(&self) -> float2 {
+        (self.min + self.max) * 0.5f32
+    }
+
     pub fn contains(&self, point: float2) -> bool {
-        (self.min.0 <= point.0 && self.min.1 <= point.1) ||
+        (self.min.0 <= point.0 && self.min.1 <= point.1) &&
         (self.max.0 >= point.0 && self.max.1 >= point.1)
     }
 
@@ -93,6 +111,10 @@ impl DivAssign for float4 {
 pub struct float2(pub f32, pub f32);
 
 impl float2 {
+    pub fn round(&self) -> float2 {
+        float2(self.0.round(), self.1.round())
+    }
+    
     pub fn length(&self) -> f32 {
         (self.0 * self.0 + self.1 * self.1).sqrt()
     }

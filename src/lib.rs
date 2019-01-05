@@ -131,8 +131,8 @@ pub struct Context {
     style: Style,
     default_font: Font,
 
-    draw_list: DrawList,
-    renderer: Box<Renderer>,
+    pub draw_list: DrawList,
+    pub renderer: Box<Renderer>,
 
     frame: u32,
     
@@ -161,6 +161,10 @@ impl Context {
         }
     }
 
+    pub fn draw_list(&mut self) -> &mut DrawList {
+        &mut self.draw_list
+    }
+    
     pub fn begin_frame(&mut self) {
         
     }
