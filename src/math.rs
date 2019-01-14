@@ -28,6 +28,14 @@ impl Rect {
             self.max - float2(amt, amt),
         )
     }
+
+    pub fn pad_sides(&self, left: f32, top: f32, right: f32, bottom: f32) -> Rect {
+        Rect::new(
+            self.min + float2(left, top),
+            self.max - float2(right, bottom),
+        )
+    }
+    
     pub fn center(&self) -> float2 {
         (self.min + self.max) * 0.5f32
     }

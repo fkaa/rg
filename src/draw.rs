@@ -484,7 +484,7 @@ impl DrawList {
         self.clip_stack.pop();
     }
 
-    pub fn set_texture(&mut self, texture: TextureHandle) {
+    pub fn set_texture(&mut self, texture: TextureHandle) {        
         if self.current_cmd().texture_id == ::std::ptr::null_mut() {
             self.current_cmd().texture_id = texture;
         } else if self.current_cmd().texture_id != texture {
@@ -615,7 +615,6 @@ impl DrawList {
                 }
                 if let Some(glyph) = font.get_glyph(renderer, ch as u16) {
                     let texture = font.font_atlas.pages[glyph.page as usize].srv_handle;
-                    self.set_texture(texture);
 
                     let cursor_y_ceil = cursor_y.ceil();
                     
@@ -633,6 +632,8 @@ impl DrawList {
                     }
 
                     if w > 0f32 {
+                        self.set_texture(texture);
+                        
                         self.vertices.push(Vertex::new(float2(x, y), float2(glyph.u,   glyph.v_2), color));
                         self.vertices.push(Vertex::new(float2(x, h), float2(glyph.u,   glyph.v),   color));
                         self.vertices.push(Vertex::new(float2(w, h), float2(glyph.u_2, glyph.v),   color));
@@ -660,12 +661,12 @@ impl DrawList {
         let uv = float2(0f32, 0f32);
 
         let vertex_count = self.path.len() * 4;
-        let index_count = self.path.len() * 6;
         let points_len = if closed {
             self.path.len()
         } else {
             self.path.len() - 1
         };
+        let index_count = points_len * 6;
 
         self.vertices.reserve(vertex_count);
         self.current_cmd().index_count += index_count as u32;

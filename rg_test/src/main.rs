@@ -441,6 +441,7 @@ impl RgOpenGlRenderer {
 
 
 impl rg::Renderer for RgOpenGlRenderer {
+    fn resize(&mut self, w: f32, h: f32) {}
     fn render(&mut self, list: &rg::DrawList) {
         unsafe {
             gl::Disable(gl::DEPTH_TEST);
