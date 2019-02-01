@@ -7,6 +7,7 @@ use glutin::dpi::*;
 use glutin::GlContext;
 
 use rg::TextureHandle;
+use rg::float2;
 
 use std::slice;
 use std::ptr;
@@ -558,6 +559,81 @@ impl rg::Renderer for RgOpenGlRenderer {
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
 
+fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin::Event) {
+    match event {
+        glutin::Event::DeviceEvent { event, .. } => match event {
+            glutin::DeviceEvent::MouseMotion { delta } => {
+                io.mouse_delta = float2(delta.0 as f32, delta.1 as f32);
+            }
+            glutin::DeviceEvent::MouseWheel { delta } => {
+                match delta {
+                    glutin::MouseScrollDelta::LineDelta(x, y) => {
+                        io.mouse_scroll = float2(x as f32, y as f32);
+                    }
+                    glutin::MouseScrollDelta::PixelDelta(pos) => {
+                        let dpi_factor = window.get_hidpi_factor();
+                        let new_size = pos.to_physical(dpi_factor);
+
+                        io.mouse_scroll = float2(new_size.x as f32, new_size.y as f32);
+                    }
+                }
+            }
+            _ => {}
+        }
+        glutin::Event::WindowEvent{ event, window_id } => match event {
+            //glutin::WindowEvent::CloseRequested => *finished = true,
+            glutin::WindowEvent::Resized(logical_size) => {
+                let dpi_factor = window.get_hidpi_factor();
+                let new_size = logical_size.to_physical(dpi_factor);
+
+                io.display_size = float2(new_size.width as f32, new_size.height as f32);
+            },
+            glutin::WindowEvent::KeyboardInput { input, .. } => {
+                if let Some(vk) = input.virtual_keycode {
+                    let idx = vk as usize;
+                    if input.state == glutin::ElementState::Released {
+                        io.down[idx] = false;
+                    } else {
+                        if !io.down[idx] {
+                            io.pressed[idx] = true;
+                        }
+                        io.down[idx] = true;
+                    }
+                }
+            }
+            glutin::WindowEvent::MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers
+            } => {
+                let idx =  match button {
+                    glutin::MouseButton::Left => 0,
+                    glutin::MouseButton::Right => 1,
+                    _ => 4,
+                };
+                
+                if state == glutin::ElementState::Released {
+                    io.mouse_down[idx] = false;
+                } else {
+                    if !io.mouse_down[idx] {
+                        io.mouse_pressed[idx] = true;
+                    }
+                    io.mouse_down[idx] = true;
+                }
+            },
+            glutin::WindowEvent::CursorMoved { position, .. } => {
+                let dpi_factor = window.get_hidpi_factor();
+                let new_pos = position.to_physical(dpi_factor);
+                
+                io.mouse = float2(new_pos.x as f32, new_pos.y as f32);
+            }
+            _ => {}
+        }
+        _ => {}
+    }
+}
+
 fn main() {
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new()
@@ -594,9 +670,14 @@ fn main() {
     while running {
         cxt.begin_frame();
 
-        events_loop.poll_events(|event| {
-            //cxt.nom_nom(event);
-        });
+        {
+            let mut io = &mut cxt.io;
+            io.clear();
+            
+            events_loop.poll_events(|event| {
+                rg_glutin_event(io, &gl_window, event);
+            });
+        }
 
         
         unsafe {

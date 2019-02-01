@@ -213,8 +213,6 @@ impl Font {
             raster,
         ).ok()?;
 
-        println!("raster_bounds: {:?}", glyph_bounds);
-
         if glyph_bounds.size.width == 0 && glyph_bounds.size.height == 0 {
             let advance = self.font_face.advance(glyph_id).ok()?;
             
@@ -282,8 +280,6 @@ impl Font {
 
             let bounds = self.font_face.typographic_bounds(glyph_id).ok()?;
             let ratio = self.font_size / self.metrics.units_per_em as f32;
-
-            println!("{}: {}", id, bounds.origin.y * ratio); 
             
             let glyph = FontGlyph {
                 page: idx as u16,
@@ -299,8 +295,6 @@ impl Font {
                 u_2,
                 v_2,
             };
-
-            println!("{:#?}", glyph);
 
             // add glyph
             let idx = self.glyphs.len();

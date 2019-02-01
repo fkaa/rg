@@ -95,19 +95,42 @@ struct ContextDrawInfo {
     cursor: float2,
 }
 
-struct IoState {
-    display_size: float2,
-    delta: f32,
+pub struct IoState {
+    pub display_size: float2,
+    pub delta: f32,
 
-    mouse_pos: float2,
-    mouse_down: [bool; 5],
-    mouse_wheel: f32,
+    pub pressed: [bool; 512],
+    pub down: [bool; 512],
+    pub mouse_pressed: [bool; 5],
+    pub mouse_down: [bool; 5],
+    pub mouse_clicked_pos: [float2; 5],
+    pub mouse: float2,
+    pub mouse_delta: float2,
+    pub mouse_scroll: float2,
+}
 
-    mouse_pos_prev: float2,
-    mouse_pos_delta: float2,
-    mouse_clicked: [bool; 5],
-    mouse_clicked_pos: [float2; 5],
+impl IoState {
+    pub fn new() -> Self {
+        IoState {
+            display_size: float2(0f32, 0f32),
+            delta: 0f32,
+            pressed: [false; 512],
+            down: [false; 512],
+            mouse_pressed: [false; 5],
+            mouse_down: [false; 5],
+            mouse_clicked_pos: [float2(0f32, 0f32); 5],
+            mouse: float2(0f32, 0f32),
+            mouse_delta: float2(0f32, 0f32),
+            mouse_scroll: float2(0f32, 0f32)
+        }
+    }
 
+    pub fn clear(&mut self) {
+        self.pressed = [false; 512];
+        self.mouse_pressed = [false; 5];
+        self.mouse_delta = float2(0f32, 0f32);
+        self.mouse_scroll = float2(0f32, 0f32);
+    }
 }
 
 struct Style {
@@ -130,6 +153,7 @@ pub struct Context {
     current_window: Option<usize>,
     style: Style,
     default_font: Font,
+    pub io: IoState,
 
     pub draw_list: DrawList,
     pub renderer: Box<Renderer>,
@@ -153,6 +177,7 @@ impl Context {
             current_window: None,
             style: Style::new(),
             default_font,
+            io: IoState::new(),
 
             draw_list: DrawList::new(),
             renderer,
