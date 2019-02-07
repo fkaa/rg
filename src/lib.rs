@@ -1,95 +1,42 @@
+#[macro_use]
+extern crate bitflags;
+
 mod math;
 mod draw;
+mod widget;
+mod layout;
 
 pub use self::math::*;
 pub use self::draw::*;
+pub use self::widget::*;
+pub use self::layout::*;
 
 use self::math::*;
 
 pub type Id = u32;
 
+#[repr(u32)]
+pub enum MouseButton {
+    Left = 0,
+    Right = 1,
+    Middle = 2,
+}
+
 pub fn hash_id(val: &str) -> Id {
-    crc::crc32::checksum_castagnoli(val.as_bytes()) as Id
-}
+    let mut hash = 0xbaba_f00d_u32;
 
-struct WindowPerFrameData {
-    cursor_start: float2,
-    cursor: float2,
-    cursor_prev_line: float2,
-    cursor_max_pos: float2,
-    indent: f32,
-    current_text_base_offset: f32,
-}
+    let bytes = val.as_bytes();
+    let len = bytes.len();
 
-impl WindowPerFrameData {
-    pub fn new() -> Self {
-        WindowPerFrameData {
-            cursor_start: float2(0f32, 0f32),
-            cursor: float2(0f32, 0f32),
-            cursor_prev_line: float2(0f32, 0f32),
-            cursor_max_pos: float2(0f32, 0f32),
-            indent: 0f32,
-            current_text_base_offset: 0f32,
-        }
-    }
-}
-
-struct Window {
-    name: String,
-    id: Id,
-    
-    pos: float2,
-    size: float2,
-    padding: float4,
-    
-    content_region: Rect,
-    clip_rect: Rect,
-
-    data: WindowPerFrameData,
-    storage: WindowStorage,
-}
-
-impl Window {
-    pub fn new(label: String) -> Self {
-        Window {
-            name: label,
-            id: 0,
-
-            pos: float2(0f32, 0f32),
-            size: float2(0f32, 0f32),
-            padding: float4(4f32, 4f32, 4f32, 4f32),
-
-            content_region: Rect::new(float2(0f32, 0f32), float2(0f32, 0f32)),
-            clip_rect: Rect::new(float2(0f32, 0f32), float2(0f32, 0f32)),
-
-            data: WindowPerFrameData::new(),
-            storage: WindowStorage::new(),
-        }
+    let mut i = 0;
+    while i < len {
+        hash = (hash << 5) + unsafe { *bytes.get_unchecked(i) } as u32;
+        
+        i += 1;
     }
 
-    pub fn is_clipped(&self, bounding_box: Rect) -> bool {
-        self.clip_rect.outside(bounding_box)
-    }
+    hash as Id
 }
-
-union StorageValue {
-    pub integer: i32,
-    pub float: f32,
-    pub ptr: *mut (),
-}
-
-struct WindowStorage {
-    pairs: Vec<(Id, StorageValue)>,
-}
-
-impl WindowStorage {
-    pub fn new() -> Self {
-        Self {
-            pairs: Vec::new(),
-        }
-    }
-}
-
 
 struct ContextDrawInfo {
     cursor: float2,
@@ -99,14 +46,15 @@ pub struct IoState {
     pub display_size: float2,
     pub delta: f32,
 
-    pub pressed: [bool; 512],
-    pub down: [bool; 512],
     pub mouse_pressed: [bool; 5],
     pub mouse_down: [bool; 5],
+    pub mouse_released: [bool; 5],
     pub mouse_clicked_pos: [float2; 5],
     pub mouse: float2,
     pub mouse_delta: float2,
     pub mouse_scroll: float2,
+    pub pressed: [bool; 512],
+    pub down: [bool; 512],
 }
 
 impl IoState {
@@ -118,6 +66,7 @@ impl IoState {
             down: [false; 512],
             mouse_pressed: [false; 5],
             mouse_down: [false; 5],
+            mouse_released: [false; 5],
             mouse_clicked_pos: [float2(0f32, 0f32); 5],
             mouse: float2(0f32, 0f32),
             mouse_delta: float2(0f32, 0f32),
@@ -131,18 +80,48 @@ impl IoState {
         self.mouse_delta = float2(0f32, 0f32);
         self.mouse_scroll = float2(0f32, 0f32);
     }
+
+    #[inline(always)]
+    pub fn has_mouse_in_rect(&self, button: MouseButton, rect: Rect) -> bool {
+        let pos = self.mouse;
+
+        rect.contains(pos)
+    }
+
+    #[inline(always)]
+    pub fn has_mouse_click_in_rect(&self, button: MouseButton, rect: Rect) -> bool {
+        let pos = unsafe { *self.mouse_clicked_pos.get_unchecked(button as usize) };
+
+        rect.contains(pos)
+    }
+
+    #[inline(always)]
+    pub fn is_mouse_down(&self, button: MouseButton) -> bool {
+        unsafe { *self.mouse_down.get_unchecked(button as usize) }
+    }
+
+    #[inline(always)]
+    pub fn is_mouse_pressed(&self, button: MouseButton) -> bool {
+        unsafe { *self.mouse_pressed.get_unchecked(button as usize) }
+    }
+    
+    #[inline(always)]
+    pub fn is_mouse_released(&self, button: MouseButton) -> bool {
+        unsafe { *self.mouse_released.get_unchecked(button as usize) }
+    }
 }
 
-struct Style {
-    window_padding: float2,
-    frame_padding: float2
+
+pub struct Style {
+    window: WindowStyle,
+    button: ButtonStyle,
 }
  
 impl Style {
     pub fn new() -> Self {
         Style {
-            window_padding: float2(2f32, 2f32),
-            frame_padding: float2(2f32, 2f32)
+            window: WindowStyle::new(),
+            button: ButtonStyle::new(),
         }
     }
 }
@@ -151,8 +130,10 @@ pub struct Context {
     windows: Vec<Window>,
     window_stack: Vec<usize>,
     current_window: Option<usize>,
+    active: Option<usize>,
     style: Style,
     default_font: Font,
+    last_widget_state: WidgetState,
     pub io: IoState,
 
     pub draw_list: DrawList,
@@ -175,8 +156,10 @@ impl Context {
             windows: Vec::new(),
             window_stack: Vec::new(),
             current_window: None,
+            active: None,
             style: Style::new(),
             default_font,
+            last_widget_state: WidgetState::None,
             io: IoState::new(),
 
             draw_list: DrawList::new(),
@@ -201,89 +184,9 @@ impl Context {
     pub fn set_next_window_pos(&mut self, pos: float2) {
 
     }
-    
-    pub fn begin(&mut self, name: &str) -> bool {
-        let (first_use, window_idx) = if let Some(wnd) = self.find_window(name) {
-            (false, wnd)
-        } else {
-            (true, self.create_window(name))
-        };
-
-        self.window_stack.push(window_idx);
-        self.current_window = Some(window_idx);
-
-        // let wnd = self.current_window();
-        let mut wnd = &mut self.windows[window_idx];
-
-        let title_bar_size = float2(wnd.size.0, wnd.data.current_text_base_offset + 4f32);
-        let inner_content_rect = Rect::new(wnd.pos + float2(0f32, title_bar_size.1), wnd.pos + wnd.size);
-
-        wnd.data.cursor_start = inner_content_rect.min + float2(wnd.padding.0, wnd.padding.1);
-        wnd.data.cursor = wnd.data.cursor_start;
-        wnd.data.cursor_prev_line = wnd.data.cursor;
-        wnd.data.cursor_max_pos = wnd.data.cursor;        
-        wnd.clip_rect = Rect::new(wnd.pos, wnd.pos + wnd.size);
-
-
-
-        self.draw_list.add_rect_filled(wnd.pos, wnd.pos + title_bar_size, 0f32, 0xff524e54);
-        self.draw_list.add_rect_filled(inner_content_rect.min, wnd.pos + wnd.size, 0f32, 0xff5f5a61);
-        self.draw_list.add_rect(wnd.pos, wnd.pos + wnd.size, 0f32, 1f32, 0x77eeeeee);
-
-        self.draw_list.add_text(&mut *self.renderer, &mut self.default_font, &wnd.name, float2(wnd.pos.0 + wnd.padding.0, wnd.pos.1 + wnd.data.current_text_base_offset), 0xffeeeeee);
-        
-        true
-    }
-
-    pub fn end(&mut self) {
-        self.window_stack.pop();
-        self.current_window = self.window_stack.last().cloned();
-    }
-
-    pub fn button(&mut self, label: &str) -> bool {
-        let wnd = &self.windows[self.current_index()];
-        let button_pos = float2(wnd.data.cursor.0, wnd.data.cursor.1);
-        let text_size = self.default_font.calculate_text_size(&mut *self.renderer, label, None);
-
-        let button_bounds = Rect::new(button_pos, button_pos + text_size);
-        
-        self.item_size(text_size);
-        if !self.item_add(button_bounds, None) {
-            return false;
-        }
-
-        self.draw_list.add_rect_filled(button_pos, button_pos + text_size, 0f32, 0xff524e54);
-        self.draw_list.add_rect(button_pos, button_pos + text_size, 0f32, 2f32, 0x77eeeeee);
-
-        let font_size = self.default_font.font_size;
-        self.draw_list.add_text(&mut *self.renderer, &mut self.default_font, label, float2(button_pos.0, button_pos.1 + font_size), 0xffeeeeee);
-
-        true
-    }
 
     pub fn text(&mut self, text: &str) {
-        let wnd = self.current_window();
 
-        let wrap_width = wnd.size.0;
-
-        let text_pos = float2(wnd.data.cursor.0, wnd.data.cursor.1 + wnd.data.current_text_base_offset);
-        let text_size = self.default_font.calculate_text_size(&mut *self.renderer, text, Some(wrap_width));
-
-        let text_bounds = Rect::new(text_pos, text_pos + text_size);
-        
-        self.item_size(text_size);
-        if !self.item_add(text_bounds, None) {
-            return;
-        }
-        
-        self.draw_list.add_text_wrapped(
-            &mut *self.renderer,
-            &mut self.default_font,
-            text,
-            text_pos,
-            wrap_width,
-            0xffeeeeee
-        );
     }
 
     pub fn draw(&mut self) {
@@ -292,19 +195,7 @@ impl Context {
     }
     
     fn item_size(&mut self, size: float2) {
-        let window = self.current_window_mut();
 
-        //let line_height = ;
-        
-        window.data.cursor_prev_line = float2(window.data.cursor.0 + size.0, window.data.cursor.1);
-        window.data.cursor = float2(
-            window.pos.0 + window.padding.0 + window.data.indent,
-            window.data.cursor.1 + size.1,
-        );
-        window.data.cursor_max_pos = float2(
-            window.data.cursor_max_pos.0.max(window.data.cursor_prev_line.0),
-            window.data.cursor_max_pos.1.max(window.data.cursor.1),
-        );
     }
 
     fn item_add(&mut self, bb: Rect, id: Option<Id>) -> bool {
@@ -313,28 +204,11 @@ impl Context {
         !window.is_clipped(bb)
     }
 
-    fn create_window(&mut self, name: &str) -> usize {
-        let mut wnd = Window::new(name.into());
-        wnd.pos = float2(30f32, 30f32);
-        wnd.size = float2(400f32, 400f32);
-        wnd.clip_rect = Rect::new(wnd.pos, wnd.size);
-        wnd.data.current_text_base_offset = (self.default_font.font_factor) * self.default_font.metrics.ascent;
 
-        let idx = self.windows.len();
 
-        self.windows.push(wnd);
-
-        idx
-    }
-
+    #[inline(always)]
     fn current_index(&self) -> usize {
         self.window_stack[self.window_stack.len() - 1]
-    }
-
-    fn find_window(&self, name: &str) -> Option<usize> {
-        let id = hash_id(name);
-
-        self.windows.iter().position(|ref wnd| wnd.id == id)
     }
 
     fn current_window(&self) -> &Window {

@@ -22,6 +22,13 @@ impl Rect {
         self.max.1 - self.min.1
     }
 
+    pub fn grow(&self, min: float2, max: float2) -> Rect {
+        Rect::new(
+            self.min + min,
+            self.max - max,
+        )
+    }
+
     pub fn pad(&self, amt: f32) -> Rect {
         Rect::new(
             self.min + float2(amt, amt),
@@ -40,6 +47,7 @@ impl Rect {
         (self.min + self.max) * 0.5f32
     }
 
+    #[inline(always)]
     pub fn contains(&self, point: float2) -> bool {
         (self.min.0 <= point.0 && self.min.1 <= point.1) &&
         (self.max.0 >= point.0 && self.max.1 >= point.1)

@@ -493,7 +493,11 @@ impl rg::Renderer for RgOpenGlRenderer {
         let mut index_offset = 0;
         for command in list.commands() {
             unsafe {
-                gl::BindTexture(gl::TEXTURE_2D, command.texture_id as _);
+                if command.texture_id == 0 as _ {
+                    gl::BindTexture(gl::TEXTURE_2D, self.texture.handle as _);
+                } else {
+                    gl::BindTexture(gl::TEXTURE_2D, command.texture_id as _);
+                }
                 gl::DrawElements(gl::TRIANGLES, command.index_count as i32, gl::UNSIGNED_SHORT, index_offset as *const _);
             }
             
@@ -618,6 +622,7 @@ fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin:
                 } else {
                     if !io.mouse_down[idx] {
                         io.mouse_pressed[idx] = true;
+                        io.mouse_clicked_pos[idx] = io.mouse;
                     }
                     io.mouse_down[idx] = true;
                 }
@@ -684,15 +689,24 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
         
-        if cxt.begin("Test Window") {
-            if cxt.button("Press me!") {
+        if cxt.begin("Test Window", rg::WindowFlags::Movable | rg::WindowFlags::Closable) {
+            if cxt.button_text("Press me!") {
+                println!("PRESS 1");
                 press_count += 1;
             }
-            //cxt.text(&format!("Pressed {} times", press_count));
+            if cxt.button_text("Press me 1!") {
+                println!("PRESS 2");
+                press_count += 1;
+            }
+            if cxt.button_text("Press me 2!") {
+                println!("PRESS 3");
+                press_count += 1;
+            }
+            /*//cxt.text(&format!("Pressed {} times", press_count));
             //cxt.text(&format!("Pressed {} times", press_count));
             //cxt.text(&format!("Pressed {} times", press_count));
             cxt.text("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
-            
+            */
             cxt.end();
         }
 
