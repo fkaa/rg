@@ -13,9 +13,11 @@ use crate::{
 
 mod button;
 mod window;
+mod text;
 
 pub use self::button::*;
 pub use self::window::*;
+pub use self::text::*;
 
 bitflags! {
     pub struct WidgetState: u32 {
@@ -38,21 +40,13 @@ pub enum WidgetLayoutState {
     PartiallyVisible,
 }
 
-pub enum TextAlignment {
-    Left,
-    Centered,
-    Right,
-}
-
-pub enum Background {
-    NinePatch(TextureHandle, [float2; 4]),
-    Texture(TextureHandle),
-    Color(u32),
-}
-
 impl Context {
-    pub fn widget(&mut self) -> (Rect, WidgetLayoutState) {
-        let bounds = self.panel_alloc_space();
+    pub fn peek_widget_width(&mut self) -> f32 {
+        self.panel_peek_width()
+    }
+    
+    pub fn widget(&mut self, height: Option<f32>) -> (Rect, WidgetLayoutState) {
+        let bounds = self.panel_alloc_space(height);
 
         let index = self.current_index();
         let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };

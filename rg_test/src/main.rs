@@ -567,7 +567,7 @@ fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin:
     match event {
         glutin::Event::DeviceEvent { event, .. } => match event {
             glutin::DeviceEvent::MouseMotion { delta } => {
-                io.mouse_delta = float2(delta.0 as f32, delta.1 as f32);
+                io.mouse_delta += float2(delta.0 as f32, delta.1 as f32);
             }
             glutin::DeviceEvent::MouseWheel { delta } => {
                 match delta {
@@ -619,6 +619,7 @@ fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin:
                 
                 if state == glutin::ElementState::Released {
                     io.mouse_down[idx] = false;
+                    io.mouse_released[idx] = true;
                 } else {
                     if !io.mouse_down[idx] {
                         io.mouse_pressed[idx] = true;
@@ -689,15 +690,22 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
         
-        if cxt.begin("Test Window", rg::WindowFlags::Movable | rg::WindowFlags::Closable) {
-            if cxt.button_text("Press me!") {
+        if cxt.begin("Test Window", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
+            cxt.row(rg::RowType::dynamic(2));
+            cxt.column(Some(0.2f32));
+            if cxt.button_text("Lots of words and textes!") {
                 println!("PRESS 1");
                 press_count += 1;
             }
+            cxt.column(Some(0.8f32));
+
             if cxt.button_text("Press me 1!") {
                 println!("PRESS 2");
                 press_count += 1;
             }
+            cxt.row(rg::RowType::dynamic(2));
+            cxt.column(Some(0.2f32));
+
             if cxt.button_text("Press me 2!") {
                 println!("PRESS 3");
                 press_count += 1;

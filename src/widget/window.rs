@@ -1,6 +1,8 @@
 use crate::{
     Context, MouseButton, Id, hash_id,
-    
+        WidgetState,
+    Background,
+    TextAlignment,
     math::{
         float2,
         Rect,
@@ -8,54 +10,6 @@ use crate::{
 
     layout,
 };
-
-use super::{
-    WidgetState,
-    Background,
-    TextAlignment,
-};
-
-pub struct WindowHeaderStyle {
-    pub text_align: TextAlignment,
-    pub spacing: float2,
-    pub padding: float2,
-    pub label_padding: float2,
-}
-
-impl WindowHeaderStyle {
-    pub fn new() -> Self {
-        WindowHeaderStyle {
-            text_align: TextAlignment::Left,
-            spacing: float2(0f32, 0f32),
-            padding: float2(4f32, 4f32),
-            label_padding: float2(2f32, 2f32),
-        }
-    }
-}
-
-pub struct WindowStyle {
-    pub header: WindowHeaderStyle,
-    pub spacing: float2,
-    pub padding: float2,
-    pub panel_padding: float2,
-    pub background: Background,
-    pub text_align: TextAlignment,
-    pub scrollbar_size: float2,
-}
-
-impl WindowStyle {
-    pub fn new() -> Self {
-        WindowStyle {
-            header: WindowHeaderStyle::new(),
-            spacing: float2(0f32, 0f32),
-            padding: float2(0f32, 0f32),
-            panel_padding: float2(4f32, 4f32),
-            background: Background::Color(0xffffffff),
-            text_align: TextAlignment::Centered,
-            scrollbar_size: float2(10f32, 10f32),
-        }
-    }
-}
 
 struct WindowPerFrameData {
     cursor_start: float2,

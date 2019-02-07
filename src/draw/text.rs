@@ -1,4 +1,9 @@
-use crate::math::*;
+use crate::{
+    TextAlignment,
+    
+    math::{*}
+};
+
 use super::{
     TextureHandle, Renderer, DrawList, Vertex
 };
@@ -288,6 +293,41 @@ impl Font {
 
         x
     }
+
+    pub fn text_size(
+        &mut self,
+        renderer: &mut Renderer,
+        text: &str,
+        wrap: f32
+    ) -> float2 {
+        use unicode_segmentation::UnicodeSegmentation;
+
+        let advance_y = (self.font_size / (self.metrics.ascent + self.metrics.descent)) * self.metrics.ascent;
+
+        let mut max_x = 0f32;
+        let mut cursor_x = 0f32;
+        let mut cursor_y = 0f32;
+
+        for word in text.split_word_bounds() {
+            let word_width = self.text_width(renderer, word);
+
+            if cursor_x + word_width > wrap {
+                cursor_y += advance_y;
+                cursor_x = 0f32;
+            }
+
+            cursor_x += word_width;
+            max_x = max_x.max(cursor_x);
+        }
+
+        let height = if cursor_x == 0f32 {
+            cursor_y
+        } else {
+            cursor_y + advance_y
+        };
+
+        float2(max_x, height)
+    }
     
     pub fn calculate_text_size(&mut self, renderer: &mut Renderer, text: &str, wrap: Option<f32>) -> float2 {
         let mut cursor_x = 0f32;
@@ -332,7 +372,7 @@ impl DrawList {
 
                 
                 let x = (pos.0 + glyph.x).round();
-                let y = (-glyph.y).round();
+                let y = pos.1 + (-glyph.y).round();
                 let w = x + glyph.w;
                 let h = y - glyph.h;
                 
@@ -354,6 +394,51 @@ impl DrawList {
                 self.index_offset += 4;
                 self.current_cmd().index_count += 6;
             }
+        }
+    }
+
+    
+    pub fn add_text_wrapped(&mut self, renderer: &mut Renderer, font: &mut Font, text: &str, pos: float2, align: TextAlignment, wrap: f32, color: u32) {
+        use unicode_segmentation::UnicodeSegmentation;
+
+        let advance_y = (font.font_size / (font.metrics.ascent + font.metrics.descent)) * font.metrics.ascent;
+        let text_end = pos.0 + wrap;
+
+        let mut word_cursor = 0;
+        let mut cursor_x = pos.0;
+        let mut cursor_y = pos.1 + font.font_factor * font.metrics.ascent;
+
+        for (offset, word) in text.split_word_bound_indices() {
+            let w = font.text_width(renderer, word);
+
+            if cursor_x + w > text_end {
+                let line_width = cursor_x - pos.0;
+                let line_position = match align {
+                    TextAlignment::Left => float2(pos.0, cursor_y),
+                    TextAlignment::Right => float2(text_end - line_width, cursor_y),
+                    TextAlignment::Centered => float2(pos.0 + wrap * 0.5f32 - line_width * 0.5, cursor_y),
+                };
+
+                self.add_text(renderer, font, &text[word_cursor..offset], line_position, color);
+                
+                cursor_y += advance_y;
+                cursor_x = pos.0;
+
+                word_cursor = offset;
+            }
+
+            cursor_x += w;
+        }
+
+        if cursor_x > 0f32 {
+            let line_width = cursor_x - pos.0;
+            let line_position = match align {
+                TextAlignment::Left => float2(pos.0, cursor_y),
+                TextAlignment::Right => float2(text_end - line_width, cursor_y),
+                TextAlignment::Centered => float2(pos.0 + wrap * 0.5f32 - line_width * 0.5, cursor_y),
+            };
+
+            self.add_text(renderer, font, &text[word_cursor..], line_position, color);
         }
     }
 }

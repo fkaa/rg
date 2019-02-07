@@ -5,11 +5,13 @@ mod math;
 mod draw;
 mod widget;
 mod layout;
+mod style;
 
 pub use self::math::*;
 pub use self::draw::*;
 pub use self::widget::*;
 pub use self::layout::*;
+pub use self::style::*;
 
 use self::math::*;
 
@@ -77,6 +79,7 @@ impl IoState {
     pub fn clear(&mut self) {
         self.pressed = [false; 512];
         self.mouse_pressed = [false; 5];
+        self.mouse_released = [false; 5];
         self.mouse_delta = float2(0f32, 0f32);
         self.mouse_scroll = float2(0f32, 0f32);
     }
@@ -112,19 +115,7 @@ impl IoState {
 }
 
 
-pub struct Style {
-    window: WindowStyle,
-    button: ButtonStyle,
-}
- 
-impl Style {
-    pub fn new() -> Self {
-        Style {
-            window: WindowStyle::new(),
-            button: ButtonStyle::new(),
-        }
-    }
-}
+
 
 pub struct Context {
     windows: Vec<Window>,
@@ -157,7 +148,7 @@ impl Context {
             window_stack: Vec::new(),
             current_window: None,
             active: None,
-            style: Style::new(),
+            style: Style::dark_style(),
             default_font,
             last_widget_state: WidgetState::None,
             io: IoState::new(),

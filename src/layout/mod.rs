@@ -1,12 +1,12 @@
 use crate::{
-    Context, Window, WindowStyle, WindowFlags, MouseButton,
-    
+    Context, Window, WindowStyle, WindowFlags, MouseButton, TextAlignment,
+    WidgetState, Background, Border,
     math::{*},
 };
 
 mod row;
 
-pub use selfrow::*;
+pub use self::row::*;
 
 pub enum RowLayoutType {
     DynamicFixed,
@@ -25,7 +25,7 @@ pub struct RowLayout {
     ty: RowLayoutType,
     index: u32,
     height: f32,
-    min_height: f32,
+    max_height: f32,
 
     max_x: f32,
     x: f32,
@@ -46,7 +46,7 @@ impl RowLayout {
             ty: RowLayoutType::StaticFixed,
             index: 0,
             height: 0f32,
-            min_height: 0f32,
+            max_height: 0f32,
             max_x: 0f32,
             x: 0f32,
             y: 0f32,
@@ -103,20 +103,6 @@ impl Panel {
             offset: float2(0f32, 0f32),
         }
     }
-
-    pub fn layout(&mut self, height: f32, columns: u32, item_spacing: float2) {
-        self.row.index = 0;
-        self.cursor.1 += self.row.height;
-        self.row.columns = columns;
-        
-        if height == 0f32 {
-            self.row.height = self.row.min_height + item_spacing.1;
-        } else {
-            self.row.height = height + item_spacing.1;
-        }
-
-        self.row.item_offset = 0f32;
-    }
     
     pub fn get_padding(&self, style: &WindowStyle) -> float2 {
         match self.ty {
@@ -147,27 +133,54 @@ impl Panel {
 }
 
 impl Context {
-    pub fn panel_alloc_row(&mut self) {
+    pub fn panel_new_row(&mut self) {
         let index = self.current_index();
         let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };
         
-        let spacing = float2(5f32, 5f32);
-        let row_height = wnd.layout.row.height - spacing.1;
+        let spacing = self.style.window.spacing;
+        let height = wnd.layout.row.max_height;
+        let row_height = height - spacing.1;
+
+        let columns = wnd.layout.row.columns;
         
-        wnd.layout.layout(row_height, wnd.layout.row.columns, spacing);
+        self.panel_layout(index, Some(row_height), columns);
+    }
+
+    pub fn panel_layout(&mut self, wnd_idx: usize, height: Option<f32>, columns: u32) {
+        let mut wnd = unsafe { self.windows.get_unchecked_mut(wnd_idx) };
+
+        let item_spacing = self.style.window.spacing;
+        
+        wnd.layout.row.index = 0;
+        wnd.layout.cursor.1 += wnd.layout.row.max_height;
+        wnd.layout.row.max_height = 0f32;
+        wnd.layout.row.columns = columns;
+        wnd.layout.row.item_offset = 0f32;
+
+        if let Some(height) = height {
+            wnd.layout.row.height = height + item_spacing.1;
+        } else {
+            // wnd.layout.row.height = wnd.layout.row.min_height + item_spacing.1;
+        }
     }
     
-    pub fn panel_alloc_space(&mut self) -> Rect {
+    pub fn panel_alloc_space(&mut self, height: Option<f32>) -> Rect {
         let index = self.current_index();
-        let (i, c) = {
+        let (column, max_columns) = {
             let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };
 
             (wnd.layout.row.index, wnd.layout.row.columns)
         };
-        if i >= c {
-            self.panel_alloc_row();
+        
+        if column >= max_columns {
+            self.panel_new_row();
         }
 
+        if let Some(height) = height {
+            let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };
+            wnd.layout.row.max_height = wnd.layout.row.max_height.max(height);
+            wnd.layout.row.height = height;
+        }
         let bounds = self.layout_widget_space(true);
         let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };
         
@@ -176,79 +189,33 @@ impl Context {
         bounds
     }
 
-    pub fn layout_widget_space(&mut self, modify: bool) -> Rect {
+    pub fn panel_peek_width(&mut self) -> f32 {
         let index = self.current_index();
+
+        let mut wnd = unsafe { self.windows.get_unchecked(index) };
+        let column = wnd.layout.row.index;
+        let max_columns = wnd.layout.row.columns;
+        let max_height = wnd.layout.row.max_height;
+        let cursor = wnd.layout.cursor;
+        let item_offset = wnd.layout.row.item_offset;
+        let height = wnd.layout.row.height;
+
+        if column >= max_columns {
+            self.panel_new_row();
+        }
+        let w = self.layout_widget_space(false).width();
+
         let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };
-
-        let style = &self.style;
-        let spacing = style.window.spacing;
-        let padding = wnd.layout.get_padding(&style.window);
-        let panel_space = wnd.layout.calculate_usable_space(&style.window);
-
-        let mut item_offset = 0f32;
-        let mut item_width = 0f32;
-        let mut item_spacing = 0f32;
-        let mut panel_space = 0f32;
+        wnd.layout.row.index = column;
+        wnd.layout.cursor = cursor;
+        wnd.layout.row.max_height = max_height;
+        wnd.layout.row.item_offset = item_offset;
+        wnd.layout.row.height = height;
         
-        match wnd.layout.row.ty {
-            RowLayoutType::DynamicFixed => {},
-            RowLayoutType::DynamicRow => {},
-            RowLayoutType::DynamicFree => {},
-            RowLayoutType::Dynamic => {},
-            RowLayoutType::StaticFixed => {
-                item_width = wnd.layout.row.item_width;
-                item_offset = wnd.layout.row.index as f32 * item_width;
-                item_spacing = wnd.layout.row.index as f32 * spacing.0;
-            },
-            RowLayoutType::StaticRow => {
-                item_width = wnd.layout.row.item_width;
-                item_offset = wnd.layout.row.item_offset;
-                item_spacing = wnd.layout.row.index as f32 * spacing.0;
-                if modify {
-                    wnd.layout.row.item_offset += item_offset;
-                }
-            },
-            RowLayoutType::StaticFree => {},
-            RowLayoutType::Static => {},
-        }
-
-        let origin = float2(
-            wnd.layout.cursor.0 + item_offset + item_spacing + padding.0,
-            wnd.layout.cursor.1
-        );
-        let size = float2(item_width, wnd.layout.row.height - spacing.1);
-
-        let bounds = Rect::new(origin, origin + size);
-        if bounds.max.0 > wnd.layout.row.max_x && modify {
-            wnd.layout.row.max_x = bounds.max.0;
-        }
-        
-        bounds
+        w
     }
-    
-    //pub fn layout_widget(&mut self, 
+
 }
-
-impl Window {
-    pub fn alloc_row(&mut self) {
-        let spacing = float2(5f32, 5f32);
-        let row_height = self.layout.row.height - spacing.1;
-        
-        self.layout.layout(row_height, self.layout.row.columns, spacing);
-    }
-
-    
-    pub fn alloc_space(&mut self, bounds: Rect) {
-        if self.layout.row.index >= self.layout.row.columns {
-            self.alloc_row();
-        }
-
-        //self.layout_widget_space(bounds);
-        
-        self.layout.row.index += 1;
-    }
-}
-
 
 impl Context {
     pub fn panel_begin(&mut self, title: &str, ty: PanelType) -> bool {
@@ -299,8 +266,21 @@ impl Context {
         wnd.layout.footer_height = 0f32;
         wnd.layout.row.index = 0;
 
-        let style = &self.style.window.header;
+        let state = WidgetState::None;
+
+        let header = &self.style.window.header;
+        let window = &self.style.window;
+        let (border, background, header_background, text) = if state.contains(WidgetState::Active) {
+            (window.active_border, window.active, header.active, header.active_text)
+        } else if state.contains(WidgetState::Hovering) {
+            (window.hover_border, window.hover, header.hover, header.hover_text)
+
+        } else {
+            (window.normal_border, window.normal, header.normal, header.normal_text)
+        };
+        
         if wnd.has_header() {
+            let style = &self.style.window.header;
             let mut header = wnd.bounds;
             header.max.1 = header.min.1;
             header.max.1 += 14f32 + 2f32 * style.padding.1;
@@ -311,13 +291,41 @@ impl Context {
             wnd.layout.bounds.min.1 += h;
             wnd.layout.cursor.1 += h;
 
-            self.draw_list.add_rect_filled(header.min, header.max, 0f32, 0xff00ffff);
+            match header_background {
+                Background::Color(col) => {
+                    self.draw_list.add_rect_filled(header.min, header.max, 0f32, col);
+                },
+                _ => {}
+            }
+
+            if wnd.flags.contains(WindowFlags::Title) {
+                self.draw_list.add_text_wrapped(
+                    &mut *self.renderer,
+                    &mut self.default_font,
+                    title,
+                    header.min,
+                    text.align,
+                    header.width(),
+                    text.color
+                );
+            }
         }
 
         let mut body = wnd.bounds;
         body.min.1 += wnd.layout.header_height;
-        self.draw_list.add_rect_filled(body.min, body.max, 0f32, 0xffff00ff);
 
+        match background {
+            Background::Color(col) => {
+                self.draw_list.add_rect_filled(body.min, body.max, 0f32, col);
+            },
+            _ => {}
+        }
+
+        if border.thickness != 0f32 {
+            let border_bounds = wnd.bounds.pad(-border.thickness * 0.5f32);
+            self.draw_list.add_rect(border_bounds.min, border_bounds.max, border.rounding, border.thickness, border.color);
+        }
+        
         // TODO: minimized?
         true
     }

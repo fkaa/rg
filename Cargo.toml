@@ -5,7 +5,7 @@ authors = ["Felix Kaaman <trundmatu@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-crc = "1.5.0"
+# crc = "1.5.0"
 bitflags = "1.0"
 unicode-segmentation = "1.2"
 # font-kit = "*"

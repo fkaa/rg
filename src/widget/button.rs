@@ -1,5 +1,9 @@
 use crate::{
     Context, MouseButton,
+    Background,
+    TextStyle,
+    Border,
+    TextAlignment,
     
     math::{
         float2,
@@ -9,30 +13,22 @@ use crate::{
 
 use super::{
     WidgetState,
-    Background,
-    TextAlignment,
 };
 
-pub struct ButtonStyle {
-    padding: float2,
-    background: Background,
-    text_align: TextAlignment,
-}
-
-impl ButtonStyle {
-    pub fn new() -> Self {
-        ButtonStyle {
-            padding: float2(0f32, 0f32),
-            background: Background::Color(0xffffffff),
-            text_align: TextAlignment::Centered,
-        }
-    }
-}
 
 impl Context {
-    pub fn button(&mut self) -> bool {
-        //let pressed = self.button_behaviour();
-        true
+    fn button_width(&mut self, text: &str) -> f32 {
+        let style = &self.style.button;
+        let w = self.default_font.text_width(&mut *self.renderer, text);
+
+        w + style.padding.0 * 2f32
+    }
+    
+    fn button_height(&mut self, text: &str, wrap: f32) -> f32 {
+        let style = &self.style.button;
+        let h = self.default_font.text_size(&mut *self.renderer, text, wrap).1;
+
+        h + style.padding.1 * 2f32
     }
 
     pub fn do_button(&mut self, bounds: Rect) -> (Rect, bool) {
@@ -44,39 +40,50 @@ impl Context {
         (Rect::new(min, max), self.button_behaviour(bounds))
     }
 
-    pub fn draw_button(&mut self, bounds: Rect) {
-        let color = 0xffffff00;
-
-        self.draw_list.add_rect_filled(bounds.min,bounds.max, 0f32, color);
+    pub fn draw_button(&mut self, bounds: Rect, border: Border, background: Background) {
+        match background {
+            Background::Color(col) => {
+                let inner = bounds.pad(1f32);
+                self.draw_list.add_rect_filled(inner.min, inner.max, border.rounding, col);
+                self.draw_list.add_rect(bounds.min, bounds.max, border.rounding, border.thickness, border.color);
+            },
+            _ => {}
+        }
     }
     
-    pub fn draw_button_text(&mut self, bounds: Rect, content: Rect, text: &str) {
-        let color = 0xffffffff;
-        
-        self.draw_button(bounds);
+    pub fn draw_button_text(&mut self, bounds: Rect, content: Rect, text: TextStyle, border: Border, background: Background, title: &str) {        
+        self.draw_button(bounds, border, background);
+
+        self.draw_list.add_text_wrapped(&mut *self.renderer, &mut self.default_font, title, bounds.min + float2(0f32, 0f32), text.align, bounds.width(), text.color);
+    }
+    
+    pub fn do_button_text(&mut self, bounds: Rect, title: &str) -> bool {
+        let (content, pressed) = self.do_button(bounds);
 
         let style = &self.style.button;
-        let w = self.default_font.text_width(&mut *self.renderer, text);
-        let x_offset = match style.text_align {
-            TextAlignment::Left => 0f32,
-            TextAlignment::Right => bounds.width() - w,
-            TextAlignment::Centered => bounds.width() * 0.5f32 - w * 0.5f32,
-        };
-        let y_offset = self.default_font.height();
+        let state = self.last_widget_state;
 
-        self.draw_list.add_text(&mut *self.renderer, &mut self.default_font, text, float2(x_offset, y_offset), color);
-    }
-    
-    pub fn do_button_text(&mut self, bounds: Rect, text: &str) -> bool {
-        let (content, pressed) = self.do_button(bounds);
+        let (text, border, background) = if state.contains(WidgetState::Active) {
+            (style.active_text, style.active_border, style.active)
+        } else if state.contains(WidgetState::Hovering) {
+            (style.hover_text, style.hover_border, style.hover)
+        } else {
+            (style.normal_text, style.normal_border, style.normal)
+        };
         
-        self.draw_button_text(bounds, content, text);
+        self.draw_button_text(bounds, content, text, border, background, title);
 
         pressed
     }
     
     pub fn button_text(&mut self, text: &str) -> bool {
-        let (bounds, state) = self.widget();
+        // TODO: maybe make wrapping optional
+        self.last_widget_state = WidgetState::None;
+        
+        let w = self.peek_widget_width();
+        let h = self.button_height(text, w);
+           
+        let (bounds, state) = self.widget(Some(h));
 
         // dbg!(bounds);
 
@@ -88,12 +95,20 @@ impl Context {
         let mut pressed = false;
         let state = &mut self.last_widget_state;
 
+        let mouse_over_button = io.has_mouse_in_rect(MouseButton::Left, bounds);
+        let mouse_click_rect = io.has_mouse_click_in_rect(MouseButton::Left, bounds);
+
+        //dbg!(mouse_over_button);
+        //dbg!(mouse_click_rect);
+        
         if io.has_mouse_in_rect(MouseButton::Left, bounds) {
             *state = WidgetState::Hovering;
 
             if io.is_mouse_down(MouseButton::Left) {
                 *state = WidgetState::Active;
             }
+
+//            dbg!(mouse_click_rect);
 
             if io.has_mouse_click_in_rect(MouseButton::Left, bounds) {
                 if io.is_mouse_released(MouseButton::Left) {
