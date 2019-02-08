@@ -567,7 +567,7 @@ fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin:
     match event {
         glutin::Event::DeviceEvent { event, .. } => match event {
             glutin::DeviceEvent::MouseMotion { delta } => {
-                io.mouse_delta += float2(delta.0 as f32, delta.1 as f32);
+                //io.mouse_delta += float2(delta.0 as f32, delta.1 as f32);
             }
             glutin::DeviceEvent::MouseWheel { delta } => {
                 match delta {
@@ -631,8 +631,11 @@ fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin:
             glutin::WindowEvent::CursorMoved { position, .. } => {
                 let dpi_factor = window.get_hidpi_factor();
                 let new_pos = position.to_physical(dpi_factor);
-                
+
+                let old = io.mouse;
                 io.mouse = float2(new_pos.x as f32, new_pos.y as f32);
+
+                io.mouse_delta += io.mouse - old;
             }
             _ => {}
         }
@@ -680,8 +683,21 @@ fn main() {
 
         {
             let mut io = &mut cxt.io;
+
+            if let Some(cursor) = io.cursor {
+                let glutin_cursor = match cursor {
+                    CursorType::Default => glutin::MouseCursor::Default,
+                    CursorType::Caret => glutin::MouseCursor::Text,
+                    CursorType::ResizeHorizontal => glutin::MouseCursor::EResize,
+                    CursorType::ResizeVertical => glutin::MouseCursor::NResize,
+                    CursorType::ResizeNE => glutin::MouseCursor::NeResize,
+                    CursorType::ResizeNW => glutin::MouseCursor::NwResize,
+                };
+
+                gl_window.set_cursor(glutin_cursor);
+            }
+
             io.clear();
-            
             events_loop.poll_events(|event| {
                 rg_glutin_event(io, &gl_window, event);
             });

@@ -57,6 +57,8 @@ pub struct IoState {
     pub mouse_scroll: float2,
     pub pressed: [bool; 512],
     pub down: [bool; 512],
+
+    pub cursor: Option<CursorType>,
 }
 
 impl IoState {

@@ -257,8 +257,8 @@ impl Context {
         wnd.layout.ty = ty;
         let panel_padding = wnd.layout.get_padding(&self.style.window);
         wnd.layout.bounds = wnd.bounds.grow(
-            float2(panel_padding.0, 0f32),
-            float2(-panel_padding.0, 0f32)
+            float2(panel_padding.0, panel_padding.1),
+            float2(panel_padding.0, panel_padding.1)
         );
         wnd.layout.cursor = wnd.layout.bounds.min;
         wnd.layout.max_x = 0f32;

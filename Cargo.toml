@@ -18,9 +18,9 @@ git = "https://github.com/fkaa/font-kit/"
 branch = "freetype-fix"
 features = ["loader-freetype-default"]
 
-[dev-dependencies.winapi]
-version = "0.3"
-features = ["everything"]
+#[dev-dependencies.winapi]
+#version = "0.3"
+# features = ["everything"]
 
 # [patch.crates-io]
 # font-kit = { path = '../font-kit' }

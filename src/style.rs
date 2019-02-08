@@ -15,6 +15,16 @@ const fn make_color(r: u8, g: u8, b: u8, a: u8) -> UColor {
 }
 
 #[derive(Copy, Clone)]
+pub enum CursorType {
+    Default,
+    Caret,
+    ResizeVertical,
+    ResizeHorizontal,
+    ResizeNE,
+    ResizeNW,
+}
+
+#[derive(Copy, Clone)]
 pub enum TextAlignment {
     Left,
     Centered,
@@ -243,6 +253,9 @@ impl Style {
         let mut style = WindowStyle::new();
 
         style.header = header;
+
+        style.padding = float2(2f32, 2f32);
+        //style.spacing = float2(2f32, 2f32);
 
         let window_bg = Background::Color(NORMAL_DARK_BG);
         style.normal = window_bg;
