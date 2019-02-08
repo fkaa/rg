@@ -331,6 +331,14 @@ impl Context {
     }
 
     pub fn panel_end(&mut self) {
+        let wnd_idx = if let Some(idx) = self.active {
+            idx
+        } else {
+            return;
+        };
+
+        let wnd = &mut self.windows[wnd_idx];
+        wnd.layout.row.max_height = 0f32;
         // TODO: scrollbars
         // TODO: panel border
         // TODO: draw resize handle

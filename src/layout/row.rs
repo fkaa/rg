@@ -58,7 +58,10 @@ impl Context {
             return;
         };
 
+        
         let mut wnd = unsafe { self.windows.get_unchecked_mut(idx) };
+        dbg!(wnd.layout.cursor.1);
+
         let (height, columns) = match ty {
             RowType::DynamicRow { min_height, columns } => {
                 wnd.layout.row.ty = RowLayoutType::DynamicRow;

@@ -138,7 +138,7 @@ impl Context {
     pub fn new(renderer: Box<Renderer>) -> Self {
         // println!("{:#?}", font_kit::sources::fs::FsSource::new().all_families());
         let family = font_kit::sources::fs::FsSource::new()
-            .select_family_by_name("Comic Sans MS")
+            .select_family_by_name("Segoe UI")
             .unwrap();
         let handle = &family.fonts()[0];
         let default_font = Font::new(String::from("Test"), &handle, 14f32).unwrap();

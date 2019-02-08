@@ -672,6 +672,8 @@ fn main() {
 
     let mut press_count = 0;
     let mut running = true;
+
+    let mut text = String::new();
     
     while running {
         cxt.begin_frame();
@@ -692,23 +694,30 @@ fn main() {
         
         if cxt.begin("Test Window", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
             cxt.row(rg::RowType::dynamic(2));
-            cxt.column(Some(0.2f32));
-            if cxt.button_text("Lots of words and textes!") {
-                println!("PRESS 1");
-                press_count += 1;
-            }
-            cxt.column(Some(0.8f32));
-
-            if cxt.button_text("Press me 1!") {
-                println!("PRESS 2");
-                press_count += 1;
-            }
             cxt.row(rg::RowType::dynamic(2));
-            cxt.column(Some(0.2f32));
+            cxt.row(rg::RowType::dynamic(2));
+            cxt.row(rg::RowType::dynamic(2));
+            {
+                cxt.column(Some(0.8f32));
+                cxt.paragraph(&text);
+                
+                cxt.column(Some(0.2f32));
+                if cxt.button_text("Lots of words and textes!") {
+                    text += "Button 1 pressed, ";
+                }
+            }
 
-            if cxt.button_text("Press me 2!") {
-                println!("PRESS 3");
-                press_count += 1;
+            cxt.row(rg::RowType::dynamic(2));
+            {
+                cxt.column(Some(0.8f32));
+                if cxt.button_text("Press me 1!") {
+                    text += "Button 2 pressed, ";
+                }
+                
+                cxt.column(Some(0.2f32));
+                if cxt.button_text("Press me 2!") {
+                    text += "Button 3 pressed, ";
+                }
             }
             /*//cxt.text(&format!("Pressed {} times", press_count));
             //cxt.text(&format!("Pressed {} times", press_count));
