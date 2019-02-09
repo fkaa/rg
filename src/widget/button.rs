@@ -95,13 +95,13 @@ impl Context {
         let mut pressed = false;
         let state = &mut self.last_widget_state;
 
-        let mouse_over_button = io.has_mouse_in_rect(MouseButton::Left, bounds);
+        let mouse_over_button = io.has_mouse_in_rect(bounds);
         let mouse_click_rect = io.has_mouse_click_in_rect(MouseButton::Left, bounds);
 
         //dbg!(mouse_over_button);
         //dbg!(mouse_click_rect);
         
-        if io.has_mouse_in_rect(MouseButton::Left, bounds) {
+        if io.has_mouse_in_rect(bounds) {
             *state = WidgetState::Hovering;
 
             if io.is_mouse_down(MouseButton::Left) {

@@ -686,12 +686,12 @@ fn main() {
 
             if let Some(cursor) = io.cursor {
                 let glutin_cursor = match cursor {
-                    CursorType::Default => glutin::MouseCursor::Default,
-                    CursorType::Caret => glutin::MouseCursor::Text,
-                    CursorType::ResizeHorizontal => glutin::MouseCursor::EResize,
-                    CursorType::ResizeVertical => glutin::MouseCursor::NResize,
-                    CursorType::ResizeNE => glutin::MouseCursor::NeResize,
-                    CursorType::ResizeNW => glutin::MouseCursor::NwResize,
+                    rg::CursorType::Default => glutin::MouseCursor::Default,
+                    rg::CursorType::Caret => glutin::MouseCursor::Text,
+                    rg::CursorType::ResizeHorizontal => glutin::MouseCursor::EResize,
+                    rg::CursorType::ResizeVertical => glutin::MouseCursor::NResize,
+                    rg::CursorType::ResizeNE => glutin::MouseCursor::NeResize,
+                    rg::CursorType::ResizeNW => glutin::MouseCursor::NwResize,
                 };
 
                 gl_window.set_cursor(glutin_cursor);

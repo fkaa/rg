@@ -224,7 +224,7 @@ impl Context {
             let mouse_click = io.is_mouse_pressed(MouseButton::Left);
             let mouse_down = io.is_mouse_down(MouseButton::Left);
             let mouse_inside = mouse_click && io.has_mouse_click_in_rect(MouseButton::Left, wnd.bounds);
-            let mouse_hover = io.has_mouse_in_rect(MouseButton::Left, wnd.bounds);
+            let mouse_hover = io.has_mouse_in_rect(wnd.bounds);
 
             // borrowck {
             drop(wnd);

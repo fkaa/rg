@@ -1,6 +1,6 @@
 use crate::{
     Context, Window, WindowStyle, WindowFlags, MouseButton, TextAlignment,
-    WidgetState, Background, Border,
+    WidgetState, Background, Border, CursorType,
     math::{*},
 };
 
@@ -242,15 +242,6 @@ impl Context {
                 let pane = &mut wnd.layout;
                 header.max.1 += pane.get_padding(&self.style.window).1;
             }
-
-            let mouse_down = io.is_mouse_down(MouseButton::Left);
-            let mouse_inside = io.has_mouse_click_in_rect(MouseButton::Left, header);
-
-            if mouse_down && mouse_inside {
-                wnd.bounds.min += io.mouse_delta;
-                wnd.bounds.max += io.mouse_delta;
-                io.mouse_clicked_pos[MouseButton::Left as usize] += io.mouse_delta;
-            }
         }
 
         // setup layout
@@ -337,8 +328,142 @@ impl Context {
             return;
         };
 
+        let io = &mut self.io;
         let wnd = &mut self.windows[wnd_idx];
         wnd.layout.row.max_height = 0f32;
+
+        // drag, resize handling
+        if wnd.flags.contains(WindowFlags::Movable) && !wnd.flags.contains(WindowFlags::ReadOnly) {
+            let border_size = 3f32;
+            let handle_size = 5f32;
+            let handle_area = float2(handle_size, handle_size);
+
+            let hori_resize_area = float2(-border_size, handle_size);
+            let vertical_resize_area = float2(handle_size, -border_size);
+
+            let handle_resize_area = float2(-handle_size, -handle_size);
+
+            let mut header = wnd.bounds;
+            header.max.1 = header.min.1;
+
+            let style = &self.style.window.header;
+            if wnd.has_header() {
+                header.max.1 += 14f32 + 2f32 * style.padding.1;
+                header.max.1 += 2f32 * style.label_padding.1;
+            } else {
+                let pane = &mut wnd.layout;
+                header.max.1 += pane.get_padding(&self.style.window).1;
+            }
+            
+            let left = Rect::new(
+                wnd.bounds.min,
+                float2(wnd.bounds.min.0, wnd.bounds.max.1)
+            ).grow(hori_resize_area, hori_resize_area);
+            let right = Rect::new(
+                float2(wnd.bounds.max.0, wnd.bounds.min.1),
+                wnd.bounds.max,
+            ).grow(hori_resize_area, hori_resize_area);
+
+            let top = Rect::new(
+                wnd.bounds.min,
+                float2(wnd.bounds.max.0, wnd.bounds.min.1)
+            ).grow(vertical_resize_area, vertical_resize_area);
+            let bottom = Rect::new(
+                float2(wnd.bounds.min.0, wnd.bounds.max.1),
+                wnd.bounds.max,
+            ).grow(vertical_resize_area, vertical_resize_area);
+
+            let tl = wnd.bounds.min;
+            let tl = Rect::new(
+                tl, tl
+            ).grow(handle_resize_area, handle_resize_area);
+            let tr = float2(wnd.bounds.max.0, wnd.bounds.min.1);
+            let tr = Rect::new(
+                tr, tr,
+            ).grow(handle_resize_area, handle_resize_area);
+
+            let bl = float2(wnd.bounds.min.0, wnd.bounds.max.1);
+            let bl = Rect::new(
+                bl, bl
+            ).grow(handle_resize_area, handle_resize_area);
+            let br = wnd.bounds.max;
+            let br = Rect::new(
+                br, br
+            ).grow(handle_resize_area, handle_resize_area);
+            let mouse_down = io.is_mouse_down(MouseButton::Left);
+
+            let in_header = io.has_mouse_in_rect(header);
+            
+            if !io.has_mouse_in_rect(header) {
+                if io.has_mouse_in_rect(left) {
+                    self.cursor = CursorType::ResizeHorizontal;
+                } else if io.has_mouse_in_rect(right) {
+                    self.cursor = CursorType::ResizeHorizontal;
+                } else if io.has_mouse_in_rect(bottom) {
+                    self.cursor = CursorType::ResizeVertical;
+                } else if io.has_mouse_in_rect(top) {
+                    self.cursor = CursorType::ResizeVertical;
+                } else if io.has_mouse_in_rect(tl) {
+                    self.cursor = CursorType::ResizeNW;
+                } else if io.has_mouse_in_rect(tr) {
+                    self.cursor = CursorType::ResizeNE;
+                } else if io.has_mouse_in_rect(bl) {
+                    self.cursor = CursorType::ResizeNE;
+                } else if io.has_mouse_in_rect(br) {
+                    self.cursor = CursorType::ResizeNW;
+                }
+            }
+
+            if mouse_down {
+                if io.has_mouse_click_in_rect(MouseButton::Left, header) {
+                    wnd.bounds.min += io.mouse_delta;
+                    wnd.bounds.max += io.mouse_delta;
+                    io.mouse_clicked_pos[MouseButton::Left as usize] += io.mouse_delta;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, right) {
+                    wnd.bounds.max.0 += io.mouse_delta.0;
+                    io.mouse_clicked_pos[MouseButton::Left as usize].0 += io.mouse_delta.0;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, left) {
+                    wnd.bounds.min.0 += io.mouse_delta.0;
+                    io.mouse_clicked_pos[MouseButton::Left as usize].0 += io.mouse_delta.0;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, bottom) {
+                    wnd.bounds.max.1 += io.mouse_delta.1;
+                    io.mouse_clicked_pos[MouseButton::Left as usize].1 += io.mouse_delta.1;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, top) {
+                    wnd.bounds.min.1 += io.mouse_delta.1;
+                    io.mouse_clicked_pos[MouseButton::Left as usize].1 += io.mouse_delta.1;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, tl) {
+                    wnd.bounds.min += io.mouse_delta;
+                    io.mouse_clicked_pos[MouseButton::Left as usize] += io.mouse_delta;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, tr) {
+                    wnd.bounds.max.0 += io.mouse_delta.0;
+                    wnd.bounds.min.1 += io.mouse_delta.1;
+                    io.mouse_clicked_pos[MouseButton::Left as usize] += io.mouse_delta;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, bl) {
+                    wnd.bounds.min.0 += io.mouse_delta.0;
+                    wnd.bounds.max.1 += io.mouse_delta.1;
+                    io.mouse_clicked_pos[MouseButton::Left as usize] += io.mouse_delta;
+                } else if io.has_mouse_click_in_rect(MouseButton::Left, br) {
+                    wnd.bounds.max += io.mouse_delta;
+                    io.mouse_clicked_pos[MouseButton::Left as usize] += io.mouse_delta;
+                }
+            }
+
+            if io.is_mouse_down(MouseButton::Right) {
+                self.draw_list.add_rect(left.min, left.max, 0f32, 1f32, 0x8800ffff);
+                self.draw_list.add_rect(right.min, right.max, 0f32, 1f32, 0x8800ffff);
+                self.draw_list.add_rect(top.min, top.max, 0f32, 1f32, 0x8800ffff);
+                self.draw_list.add_rect(bottom.min, bottom.max, 0f32, 1f32, 0x8800ffff);
+
+
+                self.draw_list.add_rect(tl.min, tl.max, 0f32, 1f32, 0x8800ff00);
+                self.draw_list.add_rect(tr.min, tr.max, 0f32, 1f32, 0x8800ff00);
+                self.draw_list.add_rect(bl.min, bl.max, 0f32, 1f32, 0x8800ff00);
+                self.draw_list.add_rect(br.min, br.max, 0f32, 1f32, 0x8800ff00);
+
+
+                self.draw_list.add_rect(header.min, header.max, 0f32, 1f32, 0x88ff00ff);
+            }
+        }
         // TODO: scrollbars
         // TODO: panel border
         // TODO: draw resize handle

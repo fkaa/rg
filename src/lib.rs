@@ -74,7 +74,9 @@ impl IoState {
             mouse_clicked_pos: [float2(0f32, 0f32); 5],
             mouse: float2(0f32, 0f32),
             mouse_delta: float2(0f32, 0f32),
-            mouse_scroll: float2(0f32, 0f32)
+            mouse_scroll: float2(0f32, 0f32),
+
+            cursor: None,
         }
     }
 
@@ -87,7 +89,7 @@ impl IoState {
     }
 
     #[inline(always)]
-    pub fn has_mouse_in_rect(&self, button: MouseButton, rect: Rect) -> bool {
+    pub fn has_mouse_in_rect(&self, rect: Rect) -> bool {
         let pos = self.mouse;
 
         rect.contains(pos)
@@ -116,9 +118,6 @@ impl IoState {
     }
 }
 
-
-
-
 pub struct Context {
     windows: Vec<Window>,
     window_stack: Vec<usize>,
@@ -133,7 +132,9 @@ pub struct Context {
     pub renderer: Box<Renderer>,
 
     frame: u32,
-    
+
+    pub prev_cursor: CursorType,
+    pub cursor: CursorType,
 }
 
 impl Context {
@@ -159,6 +160,9 @@ impl Context {
             renderer,
 
             frame: 0,
+
+            prev_cursor: CursorType::Default,
+            cursor: CursorType::Default,
         }
     }
 
@@ -172,6 +176,13 @@ impl Context {
     
     pub fn end_frame(&mut self) {
         self.frame += 1;
+
+        if self.prev_cursor != self.cursor {
+            self.io.cursor = Some(self.cursor);
+        }
+        
+        self.prev_cursor = self.cursor;
+        self.cursor = CursorType::Default;
     }
 
     pub fn set_next_window_pos(&mut self, pos: float2) {

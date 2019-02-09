@@ -14,7 +14,7 @@ const fn make_color(r: u8, g: u8, b: u8, a: u8) -> UColor {
     (r as u32)
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum CursorType {
     Default,
     Caret,
