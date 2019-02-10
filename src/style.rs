@@ -262,7 +262,7 @@ impl Style {
         style.hover = window_bg;
         style.active = window_bg;
 
-        let window_border = Border::new(NORMAL_DARK_BG_TINT, 2f32, 0f32);
+        let window_border = Border::new(make_color(30, 30, 30, 255), 2f32, 0f32);
         style.normal_border = window_border;
         style.hover_border = window_border;
         style.active_border = window_border;
@@ -277,9 +277,9 @@ impl Style {
         style.hover = Background::Color(HOVER_DARK_BTN_BG);
         style.normal = Background::Color(NORMAL_DARK_BTN_BG);
 
-        style.active_border = Border::new(make_color(30, 30, 30, 255), 1f32, 0f32);
-        style.hover_border = Border::new(make_color(50, 50, 50, 255), 1f32, 0f32);
-        style.normal_border = Border::new(make_color(40, 40, 40, 255), 1f32, 0f32);
+        style.active_border = Border::new(make_color(10, 10, 10, 255), 1f32, 0f32);
+        style.hover_border = Border::new(make_color(30, 30, 30, 255), 1f32, 0f32);
+        style.normal_border = Border::new(make_color(20, 20, 20, 255), 1f32, 0f32);
 
         style.active_text.color = ACTIVE_DARK_BTN_TEXT;
         style.hover_text.color = HOVER_DARK_BTN_TEXT;

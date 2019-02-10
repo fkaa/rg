@@ -212,7 +212,8 @@ impl Context {
 
     #[inline(always)]
     fn current_index(&self) -> usize {
-        self.window_stack[self.window_stack.len() - 1]
+        self.active.unwrap()
+        //self.window_stack[self.window_stack.len() - 1]
     }
 
     fn current_window(&self) -> &Window {

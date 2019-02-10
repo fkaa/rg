@@ -707,6 +707,17 @@ fn main() {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
+
+        if cxt.begin("Debug", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
+            cxt.row(rg::RowType::dynamic(2));
+            {
+                cxt.column(Some(0.8f32));
+                cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
+                cxt.column(Some(0.2f32));
+                cxt.paragraph("Much less text than the one to the left.");
+            }
+            cxt.end();
+        }
         
         if cxt.begin("Test Window", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
             cxt.row(rg::RowType::dynamic(2));

@@ -28,8 +28,6 @@ pub struct RowLayout {
     max_height: f32,
 
     max_x: f32,
-    x: f32,
-    y: f32,
 
     ratio: f32,
     columns: u32,
@@ -48,8 +46,6 @@ impl RowLayout {
             height: 0f32,
             max_height: 0f32,
             max_x: 0f32,
-            x: 0f32,
-            y: 0f32,
             ratio: 0f32,
             columns: 0,
             item_width: 0f32,
@@ -316,6 +312,12 @@ impl Context {
             let border_bounds = wnd.bounds.pad(-border.thickness * 0.5f32);
             self.draw_list.add_rect(border_bounds.min, border_bounds.max, border.rounding, border.thickness, border.color);
         }
+
+        let flags = wnd.flags;
+        
+        self.row(RowType::dynamic(1));
+        self.column(Some(0.8f32));
+        self.paragraph(&format!("{:#?}", flags));
         
         // TODO: minimized?
         true
@@ -331,6 +333,20 @@ impl Context {
         let io = &mut self.io;
         let wnd = &mut self.windows[wnd_idx];
         wnd.layout.row.max_height = 0f32;
+        wnd.layout.cursor = float2(0f32, 0f32);
+        wnd.layout.header_height = 0f32;
+        wnd.layout.footer_height = 0f32;
+        wnd.layout.max_x = 0f32;
+        wnd.layout.row.height = 0f32;
+        wnd.layout.row.max_height = 0f32;
+
+        wnd.layout.row.max_x = 0f32;
+
+        wnd.layout.row.ratio = 0f32;
+        wnd.layout.row.columns = 0;
+        wnd.layout.row.item_width = 0f32;
+        wnd.layout.row.item_height = 0f32;
+        wnd.layout.row.item_offset = 0f32;
 
         // drag, resize handling
         if wnd.flags.contains(WindowFlags::Movable) && !wnd.flags.contains(WindowFlags::ReadOnly) {

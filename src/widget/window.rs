@@ -184,7 +184,8 @@ impl Context {
     }
 
     pub fn begin(&mut self, title: &str, flags: WindowFlags) -> bool {
-        self.begin_titled(title, Rect::new(float2(10f32, 10f32), float2(410f32, 510f32)), flags)
+        let offset = float2(40f32, 40f32) * self.window_stack.len() as f32;
+        self.begin_titled(title, Rect::new(float2(10f32, 10f32) + offset, float2(410f32, 510f32) + offset), flags)
     }
     
     pub fn begin_titled(&mut self, title: &str, bounds: Rect, flags: WindowFlags) -> bool {
@@ -199,12 +200,13 @@ impl Context {
 
             idx
         } else {
-            let idx = self.create_window(title, hash, bounds, flags);
+            let idx = self.create_window(title, hash, bounds, flags | WindowFlags::ReadOnly);
 
             self.window_stack.push(idx);
             
             idx
         };
+
         
         if let None = self.active {
             self.active = Some(idx);
@@ -252,17 +254,17 @@ impl Context {
             if let Some(wnd_idx) = window_clicked {
                 wnd.flags.insert(WindowFlags::ReadOnly);
                 self.windows[wnd_idx].flags.remove(WindowFlags::ReadOnly);
-                self.active = Some(wnd_idx);
+                //self.active = Some(wnd_idx);
                 
                 self.move_window_to_front(wnd_idx);
-            } else {
+            } else if mouse_inside {
                 wnd.flags.remove(WindowFlags::ReadOnly);
-                self.active = Some(idx);
+                //self.active = Some(idx);
 
                 self.move_stack_pos_to_front(stack_pos);
             }
         }
-
+        self.active = Some(idx);
         let wnd = &mut self.windows[idx];
         wnd.layout.offset = wnd.scrollbar;
 
@@ -271,5 +273,6 @@ impl Context {
 
     pub fn end(&mut self) {
         self.panel_end();
+        self.active = None;
     }
 }
