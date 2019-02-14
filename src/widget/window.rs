@@ -33,24 +33,6 @@ impl WindowPerFrameData {
     }
 }
 
-union StorageValue {
-    pub integer: i32,
-    pub float: f32,
-    pub ptr: *mut (),
-}
-
-struct WindowStorage {
-    pairs: Vec<(Id, StorageValue)>,
-}
-
-impl WindowStorage {
-    pub fn new() -> Self {
-        Self {
-            pairs: Vec::new(),
-        }
-    }
-}
-
 bitflags! {
     pub struct WindowFlags: u32 {
         const None = 0;
@@ -90,7 +72,6 @@ pub struct Window {
     pub scrollbar: float2,
 
     data: WindowPerFrameData,
-    storage: WindowStorage,
 }
 
 impl Window {
@@ -107,7 +88,6 @@ impl Window {
             scrollbar: float2(0f32, 0f32),
             
             data: WindowPerFrameData::new(),
-            storage: WindowStorage::new(),
         }
     }
 
@@ -207,11 +187,6 @@ impl Context {
             idx
         };
 
-        
-        if let None = self.active {
-            self.active = Some(idx);
-        }
-
         let stack_pos = self.get_window_stack_pos(idx).unwrap();
         let wnd = &mut self.windows[idx];
         let io = &self.io;
@@ -234,14 +209,17 @@ impl Context {
             let mut window_clicked = None;
             if mouse_inside {
                 let len = self.window_stack.len();
-                let mut i = stack_pos + 1;
+                let mut i = 0;
+                let mut p = 0;
 
                 while i < len {
-                    let p = self.window_stack[i];
-                    let bounds = self.windows[p].bounds;
+                    // if i == idx { continue; }
+                    let pos = self.window_stack[i];
+                    let bounds = self.windows[i].bounds;
 
-                    if bounds.contains(io.mouse) {
+                    if bounds.contains(io.mouse) && pos >= p {
                         window_clicked = Some(i);
+                        p = pos;
                     }
 
                     i += 1;
@@ -262,6 +240,8 @@ impl Context {
                 //self.active = Some(idx);
 
                 self.move_stack_pos_to_front(stack_pos);
+            } else if mouse_click {
+                wnd.flags.insert(WindowFlags::ReadOnly);
             }
         }
         self.active = Some(idx);
@@ -273,6 +253,10 @@ impl Context {
 
     pub fn end(&mut self) {
         self.panel_end();
-        self.active = None;
+
+        if let Some(idx) = self.active {
+            self.draw_list.push_layer(idx as u32);
+            self.active = None;
+        }
     }
 }

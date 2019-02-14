@@ -14,10 +14,12 @@ use crate::{
 mod button;
 mod window;
 mod text;
+mod tab;
 
 pub use self::button::*;
 pub use self::window::*;
 pub use self::text::*;
+pub use self::tab::*;
 
 bitflags! {
     pub struct WidgetState: u32 {

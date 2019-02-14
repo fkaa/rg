@@ -491,17 +491,20 @@ impl rg::Renderer for RgOpenGlRenderer {
         self.shader.bind_uniform_block(0, &self.common_uniforms);
 
         let mut index_offset = 0;
-        for command in list.commands() {
-            unsafe {
-                if command.texture_id == 0 as _ {
-                    gl::BindTexture(gl::TEXTURE_2D, self.texture.handle as _);
-                } else {
-                    gl::BindTexture(gl::TEXTURE_2D, command.texture_id as _);
+        
+        for layer in list.commands() {
+            for command in layer {
+                unsafe {
+                    if command.texture_id == 0 as _ {
+                        gl::BindTexture(gl::TEXTURE_2D, self.texture.handle as _);
+                    } else {
+                        gl::BindTexture(gl::TEXTURE_2D, command.texture_id as _);
+                    }
+                    
+                    gl::DrawElements(gl::TRIANGLES, command.index_count as i32, gl::UNSIGNED_SHORT, command.index_offset as *const _);
                 }
-                gl::DrawElements(gl::TRIANGLES, command.index_count as i32, gl::UNSIGNED_SHORT, index_offset as *const _);
             }
             
-            index_offset += command.index_count;
         }
     }
 
@@ -646,7 +649,7 @@ fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin:
 fn main() {
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new()
-        .with_title("Rusty ImGui")
+        .with_title("UI")
         .with_dimensions(LogicalSize::new(WIDTH as _, HEIGHT as _));
     let context = glutin::ContextBuilder::new()
         .with_gl(glutin::GlRequest::Latest)
@@ -699,6 +702,14 @@ fn main() {
 
             io.clear();
             events_loop.poll_events(|event| {
+                match &event {
+                    glutin::Event::WindowEvent{ event, window_id } => match event {
+                        glutin::WindowEvent::CloseRequested => { running = false; }
+                        _ => {}
+                    }
+                    _ => {}
+                }
+                
                 rg_glutin_event(io, &gl_window, event);
             });
         }
@@ -709,6 +720,11 @@ fn main() {
         }
 
         if cxt.begin("Debug", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
+            if cxt.begin_tab_bar("tabbar") {
+                
+                
+                cxt.end_tab_bar();
+            }
             cxt.row(rg::RowType::dynamic(2));
             {
                 cxt.column(Some(0.8f32));

@@ -1,10 +1,9 @@
 mod text;
 
+use std::ops::Range;
 pub use self::text::*;
 
 use crate::math::*;
-
-use unicode_segmentation::UnicodeSegmentation;
 
 pub type TextureHandle = *mut ();
 
@@ -47,6 +46,7 @@ pub trait Renderer {
 }
 
 pub struct DrawCommand {
+    pub index_offset: u32,
     pub index_count: u32,
     clip_rect: float4,
     pub texture_id: TextureHandle,
@@ -55,6 +55,7 @@ pub struct DrawCommand {
 impl DrawCommand {
     pub fn new() -> Self {
         DrawCommand {
+            index_offset: 0,
             index_count: 0,
             clip_rect: float4(0f32, 0f32, 800f32, 800f32),
             texture_id: ::std::ptr::null_mut() as _
@@ -62,110 +63,49 @@ impl DrawCommand {
     }
 }
 
+#[derive(Clone)]
+pub struct DrawLayer {
+    command_range: Range<usize>,
+    position: u32,
+}
 
-
+impl DrawLayer  {
+    pub fn new(command_range: Range<usize>, position: u32) -> Self {
+        DrawLayer {
+            command_range,
+            position,
+        }
+    }
+}
 
 pub struct DrawList {
-    commands: Vec<DrawCommand>,
-
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
     pub index_offset: u32,
     path: Vec<float2>,
 
+    commands: Vec<DrawCommand>,
+    command_start: usize,
+    layers: Vec<DrawLayer>,
+    layer_index: usize,
+
     clip_stack: Vec<float4>,
     texture_stack: Vec<TextureHandle>
 }
 
-pub struct PathBuilder<'a> {
-    list: &'a mut DrawList
-}
-
-fn build_arc_lut() -> [float2; 12] {
-    let mut arr = [float2(0f32, 0f32); 12];
-    for x in 0..12 {
-        let a = ((x as f32) / 12f32) * ::std::f32::consts::PI * 2f32;
-        arr[x] = float2(a.cos(), a.sin());
-    }
-    arr
-    
-    /*use ::std::f32::consts::PI;
-    
-    [
-        float2(0f32, 0f32),
-        float2((1f32 / 12f32 * PI * 2f32).cos(), (1f32 / 12f32 * PI * 2f32).sin()),
-        float2((2f32 / 12f32 * PI * 2f32).cos(), (2f32 / 12f32 * PI * 2f32).sin()),
-        float2((3f32 / 12f32 * PI * 2f32).cos(), (3f32 / 12f32 * PI * 2f32).sin()),
-        float2((4f32 / 12f32 * PI * 2f32).cos(), (4f32 / 12f32 * PI * 2f32).sin()),
-        float2((5f32 / 12f32 * PI * 2f32).cos(), (5f32 / 12f32 * PI * 2f32).sin()),
-        float2((6f32 / 12f32 * PI * 2f32).cos(), (6f32 / 12f32 * PI * 2f32).sin()),
-        float2((7f32 / 12f32 * PI * 2f32).cos(), (7f32 / 12f32 * PI * 2f32).sin()),
-        float2((8f32 / 12f32 * PI * 2f32).cos(), (8f32 / 12f32 * PI * 2f32).sin()),
-        float2((9f32 / 12f32 * PI * 2f32).cos(), (9f32 / 12f32 * PI * 2f32).sin()),
-        float2((10f32 / 12f32 * PI * 2f32).cos(), (10f32 / 12f32 * PI * 2f32).sin()),
-        float2((11f32 / 12f32 * PI * 2f32).cos(), (11f32 / 12f32 * PI * 2f32).sin()),
-    ]*/
-}
-
-impl<'a> PathBuilder<'a> {
-    pub fn new(list: &'a mut DrawList) -> Self {
-        PathBuilder {
-            list
-        }
-    }
-
-    pub fn line(mut self, pos: float2) -> Self {
-        self.list.path.push(pos);
-        self
-    }
-
-    pub fn arc_fast(mut self, center: float2, radius: f32, min: u32, max: u32) -> Self {
-        let lut = build_arc_lut();
-
-        for x in min..(max + 1) {
-            let c = lut[(x % 12) as usize];
-            self.list.path.push(center + c * float2(radius, radius));
-        }
-
-        self
-    }
-
-    pub fn arc(mut self, center: float2, radius: f32, min: f32, max: f32, segments: u32) -> Self {
-        if radius == 0f32 {
-            self.list.path.push(center);
-        }
-
-        for i in 0..(segments - 1) {
-            let a = min + (i as f32 / segments as f32) * (max - min);
-            self.list.path.push(float2(center.0 + a.cos() * radius, center.1 + a.sin() * radius));
-        }
-        
-        self
-    }
-
-    pub fn stroke(self, thickness: f32, closed: bool, color: u32) -> Self {
-        self.list.add_poly_line(thickness, closed, color);
-        self.list.path.clear();
-
-        self
-    }
-
-    pub fn fill(self, color: u32) {
-        self.list.add_poly_fill(color);
-        self.list.path.clear();
-    }
-}
-
-
 impl DrawList {
     pub fn new() -> Self {
         DrawList {
-            commands: vec![DrawCommand::new()],
             vertices: Vec::new(),
             indices: Vec::new(),
             index_offset: 0,
             path: Vec::new(),
 
+            commands: vec![DrawCommand::new()],
+            command_start: 0,
+            layers: Vec::new(),
+            layer_index: 0,
+            
             clip_stack: Vec::new(),
             texture_stack: Vec::new()
         }
@@ -173,12 +113,23 @@ impl DrawList {
 
     pub fn clear(&mut self) {
         self.commands.clear();
+        self.command_start = 0;
+        self.layers.clear();
         self.index_offset = 0;
+        self.layer_index = 0;
         self.vertices.clear();
         self.indices.clear();
         self.path.clear();
         self.clip_stack.clear();
         self.texture_stack.clear();
+    }
+
+    pub fn push_layer(&mut self, position: u32) {
+        let layer = DrawLayer::new(self.command_start..self.commands.len(), position);
+        self.layers.push(layer);
+        
+        self.command_start = self.commands.len();
+        self.push_draw_cmd();
     }
     
     pub fn push_clip_rect(&mut self, rect: float4) {
@@ -214,6 +165,61 @@ impl DrawList {
 
     pub fn pop_texture(&mut self) {
         self.texture_stack.pop();
+    }
+
+
+    pub fn swap_window_stack_indices(&mut self, stack_positions: &[usize]) {
+        let mut i = 0;
+        let len = self.layers.len();
+        
+        while i < len {
+            let layer = unsafe { self.layers.get_unchecked_mut(i) };
+            layer.position = stack_positions[layer.position as usize] as u32;
+            
+            i += 1;
+        }
+
+        self.layers.sort_unstable_by_key(|l| l.position);
+    }
+    
+    pub fn commands<'a>(&'a self) -> Vec<&'a [DrawCommand]> {
+        let mut layers = Vec::new();
+        
+        for layer in &self.layers {
+            layers.push(&self.commands[layer.command_range.clone()]);
+        }
+
+        layers
+    }
+
+    fn push_draw_cmd(&mut self) {
+        let rect = self.current_clip_rect();
+        let texture = self.current_texture();
+        
+        self.commands.push(DrawCommand {
+            index_offset: self.indices.len() as u32 * 2,
+            index_count: 0,
+            clip_rect: rect,
+            texture_id: texture
+        })
+    }
+
+    fn current_cmd(&mut self) -> &mut DrawCommand {
+        if self.commands.len() > 0 {
+            self.commands.last_mut().unwrap()
+        } else {
+            self.commands.push(DrawCommand::new());
+
+            self.commands.last_mut().unwrap()
+        }
+    }
+
+    fn current_texture(&self) -> TextureHandle {
+        self.texture_stack.last().cloned().unwrap_or(::std::ptr::null() as *const () as TextureHandle)
+    }
+
+    fn current_clip_rect(&self) -> float4 {
+        self.clip_stack.last().cloned().unwrap_or(float4(0f32, 0f32, 0f32, 0f32))
     }
 
     pub fn add_line(&mut self, a: float2, b: float2, color: u32) {
@@ -345,32 +351,68 @@ impl DrawList {
         PathBuilder::new(self)
     }
 
-    pub fn commands(&self) -> &Vec<DrawCommand> {
-        &self.commands
+}
+
+
+
+pub struct PathBuilder<'a> {
+    list: &'a mut DrawList
+}
+
+fn build_arc_lut() -> [float2; 12] {
+    let mut arr = [float2(0f32, 0f32); 12];
+    for x in 0..12 {
+        let a = ((x as f32) / 12f32) * ::std::f32::consts::PI * 2f32;
+        arr[x] = float2(a.cos(), a.sin());
     }
+    arr
+}
 
-    fn push_draw_cmd(&mut self) {
-        let rect = self.current_clip_rect();
-        let texture = self.current_texture();
-
-        self.commands.push(DrawCommand { index_count: 0, clip_rect: rect, texture_id: texture })
-    }
-
-    fn current_cmd(&mut self) -> &mut DrawCommand {
-        if self.commands.len() > 0 {
-            self.commands.last_mut().unwrap()
-        } else {
-            self.commands.push(DrawCommand::new());
-
-            self.commands.last_mut().unwrap()
+impl<'a> PathBuilder<'a> {
+    pub fn new(list: &'a mut DrawList) -> Self {
+        PathBuilder {
+            list
         }
     }
 
-    fn current_texture(&self) -> TextureHandle {
-        self.texture_stack.last().cloned().unwrap_or(::std::ptr::null() as *const () as TextureHandle)
+    pub fn line(mut self, pos: float2) -> Self {
+        self.list.path.push(pos);
+        self
     }
 
-    fn current_clip_rect(&self) -> float4 {
-        self.clip_stack.last().cloned().unwrap_or(float4(0f32, 0f32, 0f32, 0f32))
+    pub fn arc_fast(mut self, center: float2, radius: f32, min: u32, max: u32) -> Self {
+        let lut = build_arc_lut();
+
+        for x in min..(max + 1) {
+            let c = lut[(x % 12) as usize];
+            self.list.path.push(center + c * float2(radius, radius));
+        }
+
+        self
+    }
+
+    pub fn arc(mut self, center: float2, radius: f32, min: f32, max: f32, segments: u32) -> Self {
+        if radius == 0f32 {
+            self.list.path.push(center);
+        }
+
+        for i in 0..(segments - 1) {
+            let a = min + (i as f32 / segments as f32) * (max - min);
+            self.list.path.push(float2(center.0 + a.cos() * radius, center.1 + a.sin() * radius));
+        }
+        
+        self
+    }
+
+    pub fn stroke(self, thickness: f32, closed: bool, color: u32) -> Self {
+        self.list.add_poly_line(thickness, closed, color);
+        self.list.path.clear();
+
+        self
+    }
+
+    pub fn fill(self, color: u32) {
+        self.list.add_poly_fill(color);
+        self.list.path.clear();
     }
 }

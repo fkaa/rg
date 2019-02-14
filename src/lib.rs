@@ -6,12 +6,14 @@ mod draw;
 mod widget;
 mod layout;
 mod style;
+mod collections;
 
 pub use self::math::*;
 pub use self::draw::*;
 pub use self::widget::*;
 pub use self::layout::*;
 pub use self::style::*;
+pub use self::collections::*;
 
 use self::math::*;
 
@@ -133,6 +135,9 @@ pub struct Context {
 
     frame: u32,
 
+    pub tab_bars: Pool<TabBar>,
+    pub current_tab_bar: Vec<PoolIndex>,
+    
     pub prev_cursor: CursorType,
     pub cursor: CursorType,
 }
@@ -161,6 +166,8 @@ impl Context {
 
             frame: 0,
 
+            tab_bars: Pool::new(),
+            current_tab_bar: Vec::new(),
             prev_cursor: CursorType::Default,
             cursor: CursorType::Default,
         }
@@ -194,6 +201,7 @@ impl Context {
     }
 
     pub fn draw(&mut self) {
+        self.draw_list.swap_window_stack_indices(&self.window_stack);
         self.renderer.render(&self.draw_list);
         self.draw_list.clear();
     }
