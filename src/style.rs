@@ -193,6 +193,42 @@ impl ButtonStyle {
     }
 }
 
+pub struct TabStyle {
+    pub padding: float2,
+
+    pub normal_text: TextStyle,
+    pub hover_text: TextStyle,
+    pub active_text: TextStyle,
+
+    pub normal_border: Border,
+    pub hover_border: Border,
+    pub active_border: Border,
+    
+    pub normal: Background,
+    pub hover: Background,
+    pub active: Background,
+}
+
+impl TabStyle {
+    pub fn new() -> Self {
+        TabStyle {
+            padding: float2(0f32, 0f32),
+
+            normal_text: TextStyle::default_style(),
+            hover_text: TextStyle::default_style(),
+            active_text: TextStyle::default_style(),
+
+            normal_border: Border::default_border(),
+            hover_border: Border::default_border(),
+            active_border: Border::default_border(),
+            
+            normal: Background::Color(0),
+            hover: Background::Color(0),
+            active: Background::Color(0),
+        }
+    }
+}
+
 pub struct ParagraphStyle {
     pub padding: float2,
 
@@ -212,6 +248,7 @@ impl ParagraphStyle {
 pub struct Style {
     pub window: WindowStyle,
     pub button: ButtonStyle,
+    pub tab: TabStyle,
     pub paragraph: ParagraphStyle,
 }
 
@@ -235,6 +272,7 @@ impl Style {
         Style {
             window: WindowStyle::new(),
             button: ButtonStyle::new(),
+            tab: TabStyle::new(),
             paragraph: ParagraphStyle::new(),
         }
     }
@@ -255,7 +293,7 @@ impl Style {
         style.header = header;
 
         style.padding = float2(2f32, 2f32);
-        //style.spacing = float2(2f32, 2f32);
+        style.spacing = float2(2f32, 0f32);
 
         let window_bg = Background::Color(NORMAL_DARK_BG);
         style.normal = window_bg;
@@ -292,6 +330,30 @@ impl Style {
         style
     }
 
+    pub fn dark_tabs() -> TabStyle {
+        let mut style = TabStyle::new();
+
+        style.padding = float2(8f32, 4f32);
+        
+        style.active = Background::Color(NORMAL_DARK_BG);
+        style.hover = Background::Color(HOVER_DARK_BTN_BG);
+        style.normal = Background::Color(ACTIVE_DARK_BTN_BG);
+
+        style.active_border = Border::new(make_color(30, 30, 30, 255), 2f32, 0f32);
+        style.hover_border = Border::new(make_color(10, 10, 10, 0), 2f32, 0f32);
+        style.normal_border = Border::new(make_color(20, 20, 20, 0), 2f32, 0f32);
+
+        style.active_text.color = ACTIVE_DARK_BTN_TEXT;
+        style.hover_text.color = HOVER_DARK_BTN_TEXT;
+        style.normal_text.color = make_color(150, 150, 150, 255);
+
+        style.active_text.align = TextAlignment::Centered;
+        style.hover_text.align = TextAlignment::Centered;
+        style.normal_text.align = TextAlignment::Centered;
+        
+        style
+    }
+
     pub fn dark_paragraph() -> ParagraphStyle {
         let mut style = ParagraphStyle::new();
 
@@ -306,6 +368,7 @@ impl Style {
 
         style.window = Self::dark_window();
         style.button = Self::dark_button();
+        style.tab = Self::dark_tabs();
         style.paragraph = Self::dark_paragraph();
 
         style

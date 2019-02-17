@@ -394,6 +394,8 @@ struct RgOpenGlRenderer {
     texture: Texture,
     layout: InputLayout,
     shader: Shader,
+    width: f32,
+    height: f32,
 
     common_uniforms: UniformBuffer<CommonUniforms>,
 
@@ -433,6 +435,8 @@ impl RgOpenGlRenderer {
             texture,
             layout,
             shader,
+            width: WIDTH as f32,
+            height: HEIGHT as f32,
             common_uniforms: UniformBuffer::new(),
             vertex_buffer: Buffer::empty(gl::ARRAY_BUFFER, gl::DYNAMIC_DRAW, 10000 * mem::size_of::<rg::Vertex>() as isize),
             index_buffer: Buffer::empty(gl::ELEMENT_ARRAY_BUFFER, gl::DYNAMIC_DRAW, 20000 * mem::size_of::<u16>() as isize),
@@ -442,18 +446,23 @@ impl RgOpenGlRenderer {
 
 
 impl rg::Renderer for RgOpenGlRenderer {
-    fn resize(&mut self, w: f32, h: f32) {}
+    fn resize(&mut self, w: f32, h: f32) {
+        self.width = w;
+        self.height = h;
+    }
+    
     fn render(&mut self, list: &rg::DrawList) {
         unsafe {
             gl::Disable(gl::DEPTH_TEST);
             gl::Enable(gl::BLEND);
             gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+            gl::Viewport(0, 0, self.width as _, self.height as _);
         }
         
         let ortho = {
             let l = 0f32;
-            let r = WIDTH as f32;
-            let b = HEIGHT as f32;
+            let r = self.width as f32;
+            let b = self.height as f32;
             let t = 0f32;
 
             [
@@ -566,7 +575,7 @@ impl rg::Renderer for RgOpenGlRenderer {
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
 
-fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin::Event) {
+fn rg_glutin_event(io: &mut rg::IoState, renderer: &mut rg::Renderer, window: &glutin::Window, event: glutin::Event) {
     match event {
         glutin::Event::DeviceEvent { event, .. } => match event {
             glutin::DeviceEvent::MouseMotion { delta } => {
@@ -592,8 +601,10 @@ fn rg_glutin_event(io: &mut rg::IoState, window: &glutin::Window, event: glutin:
             glutin::WindowEvent::Resized(logical_size) => {
                 let dpi_factor = window.get_hidpi_factor();
                 let new_size = logical_size.to_physical(dpi_factor);
-
-                io.display_size = float2(new_size.width as f32, new_size.height as f32);
+                let size = float2(new_size.width as f32, new_size.height as f32);
+                
+                io.display_size = size;
+                renderer.resize(size.0, size.1);
             },
             glutin::WindowEvent::KeyboardInput { input, .. } => {
                 if let Some(vk) = input.virtual_keycode {
@@ -701,6 +712,7 @@ fn main() {
             }
 
             io.clear();
+            let renderer = &mut *cxt.renderer;
             events_loop.poll_events(|event| {
                 match &event {
                     glutin::Event::WindowEvent{ event, window_id } => match event {
@@ -710,7 +722,7 @@ fn main() {
                     _ => {}
                 }
                 
-                rg_glutin_event(io, &gl_window, event);
+                rg_glutin_event(io, renderer, &gl_window, event);
             });
         }
 
@@ -721,16 +733,35 @@ fn main() {
 
         if cxt.begin("Debug", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
             if cxt.begin_tab_bar("tabbar") {
-                
-                
+                if cxt.begin_tab_item("Test Tab") {
+                    cxt.row(rg::RowType::dynamic(1));
+                    cxt.column(Some(1f32));
+                    cxt.paragraph("Inside Tab 1!");
+
+                    cxt.row(rg::RowType::dynamic(2));
+                    {
+                        cxt.column(Some(0.8f32));
+                        cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
+                        cxt.column(Some(0.2f32));
+                        cxt.paragraph("Much less text than the one to the left.");
+                    }
+                    
+                    cxt.end_tab_item();
+                }
+                if cxt.begin_tab_item("Extremely Very Long Tab Name") {
+                    cxt.row(rg::RowType::dynamic(1));
+                    cxt.column(Some(1f32));
+                    cxt.paragraph("Inside Tab 2!");
+                    cxt.end_tab_item();
+                }
+                if cxt.begin_tab_item("Another Tab Name") {
+                    cxt.row(rg::RowType::dynamic(1));
+                    cxt.column(Some(1f32));
+                    cxt.paragraph("Inside Tab 2!");
+                    
+                    cxt.end_tab_item();
+                }
                 cxt.end_tab_bar();
-            }
-            cxt.row(rg::RowType::dynamic(2));
-            {
-                cxt.column(Some(0.8f32));
-                cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
-                cxt.column(Some(0.2f32));
-                cxt.paragraph("Much less text than the one to the left.");
             }
             cxt.end();
         }
@@ -762,11 +793,6 @@ fn main() {
                     text += "Button 3 pressed, ";
                 }
             }
-            /*//cxt.text(&format!("Pressed {} times", press_count));
-            //cxt.text(&format!("Pressed {} times", press_count));
-            //cxt.text(&format!("Pressed {} times", press_count));
-            cxt.text("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
-            */
             cxt.end();
         }
 

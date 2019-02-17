@@ -383,9 +383,13 @@ impl<'a> PathBuilder<'a> {
     pub fn arc_fast(mut self, center: float2, radius: f32, min: u32, max: u32) -> Self {
         let lut = build_arc_lut();
 
-        for x in min..(max + 1) {
-            let c = lut[(x % 12) as usize];
+        let mut i = min;
+        let end = max;
+        while i <= end {
+            let c = lut[(i % 12) as usize];
             self.list.path.push(center + c * float2(radius, radius));
+
+            i += 1;
         }
 
         self

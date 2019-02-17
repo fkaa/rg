@@ -15,6 +15,12 @@ use super::{
     WidgetState,
 };
 
+bitflags!{
+    pub struct ButtonFlags: u32 {
+        const None = 0;
+        const PressOnClick = 1 << 0;
+    }
+}
 
 impl Context {
     fn button_width(&mut self, text: &str) -> f32 {
@@ -37,7 +43,7 @@ impl Context {
         let min = bounds.min + style.padding;
         let max = bounds.max - style.padding;
 
-        (Rect::new(min, max), self.button_behaviour(bounds))
+        (Rect::new(min, max), self.button_behaviour(bounds, ButtonFlags::None))
     }
 
     pub fn draw_button(&mut self, bounds: Rect, border: Border, background: Background) {
@@ -90,16 +96,13 @@ impl Context {
         self.do_button_text(bounds, text)
     }
     
-    pub fn button_behaviour(&mut self, bounds: Rect) -> bool {
+    pub fn button_behaviour(&mut self, bounds: Rect, flags: ButtonFlags) -> bool {
         let io = &self.io;
         let mut pressed = false;
         let state = &mut self.last_widget_state;
 
         let mouse_over_button = io.has_mouse_in_rect(bounds);
         let mouse_click_rect = io.has_mouse_click_in_rect(MouseButton::Left, bounds);
-
-        //dbg!(mouse_over_button);
-        //dbg!(mouse_click_rect);
         
         if io.has_mouse_in_rect(bounds) {
             *state = WidgetState::Hovering;
@@ -108,11 +111,15 @@ impl Context {
                 *state = WidgetState::Active;
             }
 
-//            dbg!(mouse_click_rect);
-
             if io.has_mouse_click_in_rect(MouseButton::Left, bounds) {
-                if io.is_mouse_released(MouseButton::Left) {
-                    pressed = true;
+                if flags.contains(ButtonFlags::PressOnClick) {
+                    if io.is_mouse_pressed(MouseButton::Left) {
+                        pressed = true;
+                    }
+                } else {
+                    if io.is_mouse_released(MouseButton::Left) {
+                        pressed = true;
+                    }
                 }
             }
         }

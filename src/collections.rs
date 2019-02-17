@@ -208,15 +208,21 @@ fn pool() {
 fn storage() {
     let mut storage = IdStorage::new();
 
+    storage.set_int(0x1, 256);
+    storage.set_int(0x2, 512);
+    storage.set_int(0x3, 1024);
+
     storage.set_int(0x3, 256);
     storage.set_int(0x2, 512);
     storage.set_int(0x1, 1024);
-
+    
     let a = storage.get_int_ref(0x3, 404);
     let b = storage.get_int_ref(0x2, 404);
     let c = storage.get_int_ref(0x1, 404);
+    let d = storage.get_int_ref(0x4, 404);
 
     assert_eq!(unsafe { *a }, 256);
     assert_eq!(unsafe { *b }, 512);
     assert_eq!(unsafe { *c }, 1024);
+    assert_eq!(unsafe { *d }, 404);
 }

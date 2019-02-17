@@ -142,6 +142,13 @@ impl Context {
         self.panel_layout(index, Some(row_height), columns);
     }
 
+    pub fn panel_cursor(&self) -> float2 {
+        let index = self.current_index();
+        let wnd = unsafe { self.windows.get_unchecked(index) };
+
+        wnd.layout.cursor
+    }
+
     pub fn panel_layout(&mut self, wnd_idx: usize, height: Option<f32>, columns: u32) {
         let mut wnd = unsafe { self.windows.get_unchecked_mut(wnd_idx) };
 
@@ -315,9 +322,9 @@ impl Context {
 
         let flags = wnd.flags;
         
-        self.row(RowType::dynamic(1));
+        /*self.row(RowType::dynamic(1));
         self.column(Some(0.8f32));
-        self.paragraph(&format!("{:#?}", flags));
+        self.paragraph(&format!("{:#?}", flags));*/
         
         // TODO: minimized?
         true

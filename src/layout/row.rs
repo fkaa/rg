@@ -14,9 +14,7 @@ pub enum RowType {
         columns: u32,
     },
     StaticRow {
-        width: f32,
         min_height: Option<f32>,
-        columns: u32,
     },
 }
 
@@ -41,11 +39,9 @@ impl RowType {
         }
     }
     
-    pub fn fixed(width: f32, columns: u32) -> Self {
+    pub fn fixed() -> Self {
         RowType::StaticRow {
-            width,
             min_height: None,
-            columns,
         }
     }
 }
@@ -68,11 +64,11 @@ impl Context {
 
                 (min_height, columns)
             }
-            RowType::StaticRow { width, min_height, columns } => {
+            RowType::StaticRow { min_height} => {
                 wnd.layout.row.ty = RowLayoutType::StaticRow;
-                wnd.layout.row.item_width = width;
+                wnd.layout.row.item_width = 0f32;
 
-                (min_height, columns)
+                (min_height, u32::max_value())
             }
         };
 
@@ -129,7 +125,7 @@ impl Context {
                 item_offset = wnd.layout.row.item_offset;
                 item_spacing = wnd.layout.row.index as f32 * spacing.0;
                 if modify {
-                    wnd.layout.row.item_offset += item_offset;
+                    wnd.layout.row.item_offset += item_width + spacing.0;
                 }
             },
             RowLayoutType::StaticFree => {},
@@ -148,6 +144,24 @@ impl Context {
         }
         
         bounds
+    }
+
+    pub fn column_fixed(&mut self, width: f32) {
+        if let Some(index) = self.active {
+            let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };
+
+            match wnd.layout.row.ty {
+                RowLayoutType::StaticRow => {
+                    wnd.layout.row.item_width = width;
+                }
+                RowLayoutType::DynamicRow => {
+                    // convert to 0..1
+                }
+                _ => {
+                    wnd.layout.row.item_width = width;
+                }
+            }
+        }
     }
 
     pub fn column(&mut self, width: Option<f32>) {
