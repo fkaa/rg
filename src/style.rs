@@ -7,7 +7,7 @@ use crate::{
 pub type UColor = u32;
 
 #[inline(always)]
-const fn make_color(r: u8, g: u8, b: u8, a: u8) -> UColor {
+pub const fn make_color(r: u8, g: u8, b: u8, a: u8) -> UColor {
     (a as u32) << 24 |
     (b as u32) << 16 |
     (g as u32) << 8 |

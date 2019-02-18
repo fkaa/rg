@@ -15,11 +15,13 @@ mod button;
 mod window;
 mod text;
 mod tab;
+mod panel;
 
 pub use self::button::*;
 pub use self::window::*;
 pub use self::text::*;
 pub use self::tab::*;
+pub use self::panel::*;
 
 bitflags! {
     pub struct WidgetState: u32 {
@@ -49,11 +51,6 @@ impl Context {
     
     pub fn widget(&mut self, height: Option<f32>) -> (Rect, WidgetLayoutState) {
         let bounds = self.panel_alloc_space(height);
-
-        let index = self.current_index();
-        let mut wnd = unsafe { self.windows.get_unchecked_mut(index) };
-
-        let clip = wnd.layout.clip;
         
         (bounds, WidgetLayoutState::Visible)
     }

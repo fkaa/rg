@@ -438,7 +438,7 @@ impl DrawList {
                 TextAlignment::Centered => float2(pos.0 + wrap * 0.5f32 - line_width * 0.5, cursor_y),
             };
 
-            self.add_text(renderer, font, &text[word_cursor..], line_position, color);
+            self.add_text(renderer, font, &text[word_cursor..], line_position.round(), color);
         }
     }
 }

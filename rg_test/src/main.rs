@@ -676,7 +676,7 @@ fn main() {
         gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
         //gl::DebugMessageCallback(gl_error_callback, ptr::null_mut());
         //gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
-        gl::ClearColor(0.05, 0.05, 0.05, 1.0);
+        gl::ClearColor(0.25, 0.25, 0.25, 1.0);
         gl::ClearDepth(1.0);
         gl::Viewport(0, 0, WIDTH, HEIGHT);
         gl::Enable(gl::DEPTH_TEST);
@@ -731,70 +731,127 @@ fn main() {
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
 
-        if cxt.begin("Debug", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
-            if cxt.begin_tab_bar("tabbar") {
-                if cxt.begin_tab_item("Test Tab") {
-                    cxt.row(rg::RowType::dynamic(1));
-                    cxt.column(Some(1f32));
-                    cxt.paragraph("Inside Tab 1!");
+        if cxt.begin_root("Root", rg::WindowFlags::NoBg) {
+            /*if cxt.begin_menu_bar() {
+            cxt.end_menu_bar();
+        }*/
+            let height = cxt.available_height();
+            cxt.row(rg::RowType::dynamic_ex(2, height));
+            cxt.column(Some(0.35f32));
+            if cxt.begin_panel("Left", rg::PanelFlags::None) {
+                if cxt.begin_tab_bar("tabbar") {
+                    if cxt.begin_tab_item("Test Tab") {
+                        cxt.row(rg::RowType::dynamic(1));
+                        cxt.column(Some(1f32));
+                        cxt.paragraph("Inside Tab 1!");
 
-                    cxt.row(rg::RowType::dynamic(2));
-                    {
-                        cxt.column(Some(0.8f32));
-                        cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
-                        cxt.column(Some(0.2f32));
-                        cxt.paragraph("Much less text than the one to the left.");
+                        cxt.row(rg::RowType::dynamic(2));
+                        {
+                            cxt.column(Some(0.8f32));
+                            cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
+                            cxt.column(Some(0.2f32));
+                            cxt.paragraph("Much less text than the one to the left.");
+                        }
+                        
+                        cxt.end_tab_item();
                     }
-                    
-                    cxt.end_tab_item();
+                    if cxt.begin_tab_item("Tab Two") {
+                        cxt.row(rg::RowType::dynamic(1));
+                        cxt.column(Some(1f32));
+                        cxt.paragraph("Inside Tab 2!");
+                        cxt.end_tab_item();
+                    }
+                    if cxt.begin_tab_item("Another Tab") {
+                        cxt.row(rg::RowType::dynamic(1));
+                        cxt.column(Some(1f32));
+                        cxt.paragraph("Inside Tab 3!");
+                        
+                        cxt.end_tab_item();
+                    }
+                    cxt.end_tab_bar();
                 }
-                if cxt.begin_tab_item("Extremely Very Long Tab Name") {
-                    cxt.row(rg::RowType::dynamic(1));
-                    cxt.column(Some(1f32));
-                    cxt.paragraph("Inside Tab 2!");
-                    cxt.end_tab_item();
-                }
-                if cxt.begin_tab_item("Another Tab Name") {
-                    cxt.row(rg::RowType::dynamic(1));
-                    cxt.column(Some(1f32));
-                    cxt.paragraph("Inside Tab 2!");
-                    
-                    cxt.end_tab_item();
-                }
-                cxt.end_tab_bar();
+                cxt.end_panel();
             }
+            
+            cxt.column(Some(0.65f32));
+            if cxt.begin_panel("Right", rg::PanelFlags::Styled) {
+                cxt.row(rg::RowType::dynamic(2));
+                {
+                    cxt.column(Some(0.8f32));
+                    cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
+                    cxt.column(Some(0.2f32));
+                    cxt.paragraph("Much less text than the one to the left.");
+                }
+                cxt.end_panel();
+            }
+            
             cxt.end();
         }
+
+        /*if cxt.begin("Debug", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
+        if cxt.begin_tab_bar("tabbar") {
+        if cxt.begin_tab_item("Test Tab") {
+        cxt.row(rg::RowType::dynamic(1));
+        cxt.column(Some(1f32));
+        cxt.paragraph("Inside Tab 1!");
+
+        cxt.row(rg::RowType::dynamic(2));
+        {
+        cxt.column(Some(0.8f32));
+        cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
+        cxt.column(Some(0.2f32));
+        cxt.paragraph("Much less text than the one to the left.");
+    }
+        
+        cxt.end_tab_item();
+    }
+        if cxt.begin_tab_item("Extremely Very Long Tab Name") {
+        cxt.row(rg::RowType::dynamic(1));
+        cxt.column(Some(1f32));
+        cxt.paragraph("Inside Tab 2!");
+        cxt.end_tab_item();
+    }
+        if cxt.begin_tab_item("Another Tab Name") {
+        cxt.row(rg::RowType::dynamic(1));
+        cxt.column(Some(1f32));
+        cxt.paragraph("Inside Tab 3!");
+        
+        cxt.end_tab_item();
+    }
+        cxt.end_tab_bar();
+    }
+        cxt.end();
+    }
         
         if cxt.begin("Test Window", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
-            cxt.row(rg::RowType::dynamic(2));
-            cxt.row(rg::RowType::dynamic(2));
-            cxt.row(rg::RowType::dynamic(2));
-            cxt.row(rg::RowType::dynamic(2));
-            {
-                cxt.column(Some(0.8f32));
-                cxt.paragraph(&text);
-                
-                cxt.column(Some(0.2f32));
-                if cxt.button_text("Lots of words and textes!") {
-                    text += "Button 1 pressed, ";
-                }
-            }
+        cxt.row(rg::RowType::dynamic(2));
+        cxt.row(rg::RowType::dynamic(2));
+        cxt.row(rg::RowType::dynamic(2));
+        cxt.row(rg::RowType::dynamic(2));
+        {
+        cxt.column(Some(0.8f32));
+        cxt.paragraph(&text);
+        
+        cxt.column(Some(0.2f32));
+        if cxt.button_text("Lots of words and textes!") {
+        text += "Button 1 pressed, ";
+    }
+    }
 
-            cxt.row(rg::RowType::dynamic(2));
-            {
-                cxt.column(Some(0.8f32));
-                if cxt.button_text("Press me 1!") {
-                    text += "Button 2 pressed, ";
-                }
-                
-                cxt.column(Some(0.2f32));
-                if cxt.button_text("Press me 2!") {
-                    text += "Button 3 pressed, ";
-                }
-            }
-            cxt.end();
-        }
+        cxt.row(rg::RowType::dynamic(2));
+        {
+        cxt.column(Some(0.8f32));
+        if cxt.button_text("Press me 1!") {
+        text += "Button 2 pressed, ";
+    }
+        
+        cxt.column(Some(0.2f32));
+        if cxt.button_text("Press me 2!") {
+        text += "Button 3 pressed, ";
+    }
+    }
+        cxt.end();
+    }*/
 
         cxt.draw();
         cxt.end_frame();

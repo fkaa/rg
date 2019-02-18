@@ -65,6 +65,9 @@ pub struct Context {
 
     frame: u32,
 
+    current_panel: usize,
+    panel_index: usize,
+    panel_stack: Vec<Panel>,
     id_stack: Vec<Id>,
     pub tab_bars: Pool<TabBar>,
     pub current_tab_bar: Vec<PoolIndex>,
@@ -98,6 +101,9 @@ impl Context {
 
             frame: 0,
 
+            current_panel: 0,
+            panel_index: 0,
+            panel_stack: Vec::new(),
             id_stack: Vec::new(),
             tab_bars: Pool::new(),
             current_tab_bar: Vec::new(),
@@ -124,7 +130,8 @@ impl Context {
         if self.prev_cursor != self.cursor {
             self.io.cursor = Some(self.cursor);
         }
-        
+
+        self.panel_index = 0;
         self.prev_cursor = self.cursor;
         self.cursor = CursorType::Default;
     }
