@@ -159,7 +159,7 @@ impl Font {
             glyphs: vec![FontGlyph::new()],
         })
     }
-
+    
     fn create_glyph(&mut self, renderer: &mut Renderer, id: u16) -> Option<FontGlyph> {
         let glyph_id = self.font_face.glyph_for_char(::std::char::from_u32(id as u32)?)?;
         let font_size = self.font_size;
@@ -266,6 +266,8 @@ impl Font {
         }
     }
 
+    ///
+    /// 
     pub fn get_glyph(&mut self, renderer: &mut Renderer, id: u16) -> Option<FontGlyph> {
         let idx = self.glyph_indices[id as usize];
 
@@ -278,6 +280,10 @@ impl Font {
 
     pub fn height(&self) -> f32 {
         self.font_size
+    }
+
+    pub fn advance_y(&self) -> f32 {
+        self.font_size / (self.metrics.ascent + self.metrics.descent) * self.metrics.ascent
     }
 
     pub fn text_width(&mut self, renderer: &mut Renderer, text: &str) -> f32 {

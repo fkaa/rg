@@ -153,6 +153,10 @@ impl Context {
             self.tab_bar_layout(tab_bar_idx);
         }
 
+        let tab_bar = &mut self.tab_bars[tab_bar_idx]; // borrowck
+        if tab_bar.selected_tab_id == 0 {
+            tab_bar.selected_tab_id = id;
+        }
         let tab_idx = self.find_tab(tab_bar_idx, id);
         let tab_bar = &mut self.tab_bars[tab_bar_idx];
 
@@ -392,35 +396,41 @@ impl Context {
 
     fn tab_item_bg(&mut self, bounds: Rect, bg: Background, border: Border) {
         let rounding = border.rounding;
-        let y1 = bounds.min.1 + 1f32;
-        let y2 = bounds.max.1 - 1f32;
 
+        let bmin = bounds.min.round();
+        let bmax = bounds.max.round();
+        
+        let y1 = bmin.1 + 1f32;
+        let y2 = bmax.1 - 1f32;
+        
         match bg {
             Background::Color(c) => {
                 self.draw_list.path()
-                    .line(float2(bounds.min.0, y2))
-                    .arc_fast(float2(bounds.min.0 + rounding, y1 + rounding), rounding, 6, 9)
-                    .arc_fast(float2(bounds.max.0 - rounding, y1 + rounding), rounding, 9, 12)
-                    .line(float2(bounds.max.0, y2))
+                    .line(float2(bmin.0, y2))
+                    .arc_fast(float2(bmin.0 + rounding, y1 + rounding), rounding, 6, 9)
+                    .arc_fast(float2(bmax.0 - rounding, y1 + rounding), rounding, 9, 12)
+                    .line(float2(bmax.0, y2))
                     .fill(c);
             }
             _ => {}
         }
-        
+
+
         self.draw_list.path()
-            .line(float2(bounds.min.0 + 0.5f32, y2))
-            .arc_fast(float2(bounds.min.0 + rounding + 0.5f32, y1 + rounding + 0.5f32), rounding, 6, 9)
-            .arc_fast(float2(bounds.max.0 - rounding - 0.5f32, y1 + rounding + 0.5f32), rounding, 9, 12)
-            .line(float2(bounds.max.0 - 0.5f32, y2))
-            .stroke(border.thickness, false, border.color);
+            .line(float2(bmin.0, y2))
+            .arc_fast(float2(bmin.0 + rounding, y1 + rounding), rounding, 6, 9)
+            .arc_fast(float2(bmax.0 - rounding, y1 + rounding), rounding, 9, 12)
+            .line(float2(bmax.0, y2))
+            .stroke_gradient(border.thickness, false, border.color & 0x00ffffff, border.color);
     }
 
     fn tab_item_text(&mut self, text: &str, bounds: Rect, style: TextStyle) {
+        let yoff = (bounds.height() - self.default_font.advance_y()) * 0.5f32;
         self.draw_list.add_text_wrapped(
             &mut *self.renderer,
             &mut self.default_font,
             text,
-            bounds.min + float2(0f32, 0f32),
+            bounds.min + float2(0f32, yoff),
             style.align,
             bounds.width(),
             style.color);

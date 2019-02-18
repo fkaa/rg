@@ -162,7 +162,6 @@ impl Context {
     }
 
     pub fn column(&mut self, width: Option<f32>) {
-        println!("{}: {:?}", self.current_panel, width);
         let idx = self.current_panel;
         let panel = &mut self.panel_stack[idx];
         

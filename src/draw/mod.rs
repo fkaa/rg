@@ -263,12 +263,20 @@ impl DrawList {
         ).stroke(thickness, true, color);
     }
 
+    pub fn add_rect_gradient(&mut self, a: float2, b: float2, rounding: f32, thickness: f32, color_a: u32, color_b: u32) {
+        self.path_rect(
+            a + float2(0.5, 0.5),
+            b - float2(0.5, 0.5),
+            rounding
+        ).stroke_gradient(thickness, true, color_a, color_b);
+    }
+
     pub fn add_rect_filled(&mut self, a: float2, b: float2, rounding: f32, color: u32) {
         self.path_rect(a, b, rounding).fill(color);
     }
 
 
-    pub fn add_poly_line(&mut self, thickness: f32, closed: bool, color: u32) {
+    pub fn add_poly_line(&mut self, thickness: f32, closed: bool, color_a: u32, color_b: u32) {
         // TEMP
         let uv = float2(0f32, 0f32);
 
@@ -307,10 +315,10 @@ impl DrawList {
                 diff * (1f32 / len) * thickness * 0.5f32
             };
 
-            self.vertices.push(Vertex::new(p1 + float2( diff.1, -diff.0), uv, color));
-            self.vertices.push(Vertex::new(p2 + float2( diff.1, -diff.0), uv, color));
-            self.vertices.push(Vertex::new(p2 + float2(-diff.1,  diff.0), uv, color));
-            self.vertices.push(Vertex::new(p1 + float2(-diff.1,  diff.0), uv, color));
+            self.vertices.push(Vertex::new(p1 + float2( diff.1, -diff.0), uv, color_a));
+            self.vertices.push(Vertex::new(p2 + float2( diff.1, -diff.0), uv, color_a));
+            self.vertices.push(Vertex::new(p2 + float2(-diff.1,  diff.0), uv, color_b));
+            self.vertices.push(Vertex::new(p1 + float2(-diff.1,  diff.0), uv, color_b));
 
             self.indices.push(offset as u16 + 0);
             self.indices.push(offset as u16 + 1);
@@ -409,7 +417,14 @@ impl<'a> PathBuilder<'a> {
     }
 
     pub fn stroke(self, thickness: f32, closed: bool, color: u32) -> Self {
-        self.list.add_poly_line(thickness, closed, color);
+        self.list.add_poly_line(thickness, closed, color, color);
+        self.list.path.clear();
+
+        self
+    }
+
+    pub fn stroke_gradient(self, thickness: f32, closed: bool, color_a: u32, color_b: u32) -> Self {
+        self.list.add_poly_line(thickness, closed, color_a, color_b);
         self.list.path.clear();
 
         self

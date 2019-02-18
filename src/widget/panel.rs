@@ -291,15 +291,19 @@ impl Context {
         self.current_panel = self.panel_index;
         self.panel_index += 1;
 
+        let bmin = panel.bounds.min.round();
+        let bmax = panel.bounds.max.round();
         if flags.contains(PanelFlags::Background) {
             let col = crate::style::make_color(60, 59, 64, 255);
-            self.draw_list.add_rect_filled(panel.bounds.min, panel.bounds.max, 0f32, col);
+            self.draw_list.add_rect_filled(bmin, bmax, 0f32, col);
         }
 
         if flags.contains(PanelFlags::Border) {
             let border = self.style.tab.active_border;
-            let border_bounds = panel.bounds.pad(-border.thickness * 0.5f32);
-            self.draw_list.add_rect(border_bounds.min, border_bounds.max, border.rounding, border.thickness, border.color);
+            let ht = -border.thickness * 0.5f32;
+            let offset = float2(ht, ht);
+            let border_bounds = Rect::new(bmin, bmax).grow(offset, offset);
+            self.draw_list.add_rect_gradient(border_bounds.min - float2(0.5f32,0.5f32), border_bounds.max, border.rounding, border.thickness, border.color & 0x00ffffff, border.color);
         }
         
         true
