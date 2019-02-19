@@ -336,8 +336,8 @@ impl Style {
         style.padding = float2(8f32, 4f32);
         
         style.active = Background::Color(NORMAL_DARK_BG);
-        style.hover = Background::Color(HOVER_DARK_BTN_BG);
-        style.normal = Background::Color(ACTIVE_DARK_BTN_BG);
+        style.hover = Background::Color(0);//HOVER_DARK_BTN_BG);
+        style.normal = Background::Color(0);//ACTIVE_DARK_BTN_BG);
 
         style.active_border = Border::new(make_color(30, 30, 30, 255), 2f32, 0f32);
         style.hover_border = Border::new(make_color(10, 10, 10, 0), 2f32, 0f32);

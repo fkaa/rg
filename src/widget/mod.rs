@@ -50,7 +50,13 @@ impl Context {
     }
     
     pub fn widget(&mut self, height: Option<f32>) -> (Rect, WidgetLayoutState) {
-        let bounds = self.panel_alloc_space(height);
+        let bounds = self.panel_alloc_space(height, true);
+        
+        (bounds, WidgetLayoutState::Visible)
+    }
+
+    pub fn widget_no_style(&mut self, height: Option<f32>) -> (Rect, WidgetLayoutState) {
+        let bounds = self.panel_alloc_space(height, false);
         
         (bounds, WidgetLayoutState::Visible)
     }

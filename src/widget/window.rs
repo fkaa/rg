@@ -332,7 +332,7 @@ impl Context {
             }
         }
 
-        self.begin_panel_ex(title, Some(body), PanelFlags::None)
+        self.begin_panel_ex(title, Some(body), None, PanelFlags::None)
     }
 
     pub fn end(&mut self) {

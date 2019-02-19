@@ -71,7 +71,7 @@ impl Context {
         };
 
         drop(panel);
-        self.panel_layout(height, columns);
+        self.panel_layout(height, columns, true);
         
         let panel = &mut self.panel_stack[idx];
         panel.row.ratio = 0f32;
@@ -80,14 +80,21 @@ impl Context {
         panel.row.columns = columns;
     }
 
-    pub fn layout_widget_space(&mut self, modify: bool) -> Rect {
+    pub fn layout_widget_space(&mut self, modify: bool, use_style: bool) -> Rect {
         let idx = self.current_panel;
         let panel = &mut self.panel_stack[idx];
-        
-        let style = &self.style;
-        let spacing = style.window.spacing;
-        let padding = panel.get_padding(&style.window);
-        let panel_space = panel.calculate_usable_space(&style.window);
+
+        let (spacing, padding, panel_space) = if use_style {
+            let style = &self.style;
+            let spacing = style.window.spacing;
+            let padding = panel.get_padding(&style.window);
+            let panel_space = panel.calculate_usable_space(&style.window);
+
+
+            (spacing, padding, panel_space)
+        } else {
+            (float2(0f32, 0f32), float2(0f32, 0f32), 0f32)
+        };
 
         let mut item_offset = 0f32;
         let mut item_width = 0f32;

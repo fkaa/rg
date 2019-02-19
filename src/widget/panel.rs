@@ -138,17 +138,21 @@ impl Panel {
 }
 
 impl Context {
-    pub fn panel_new_row(&mut self) {
+    pub fn panel_new_row(&mut self, use_style: bool) {
         let idx = self.current_panel;
         let panel = &mut self.panel_stack[idx];
 
-        let spacing = self.style.window.spacing;
+        let spacing = if use_style {
+            self.style.window.spacing.1
+        } else {
+            0f32
+        };
         let height = panel.row.max_height;
-        let row_height = height - spacing.1;
+        let row_height = height - spacing;
 
         let columns = panel.row.columns;
         
-        self.panel_layout(Some(row_height), columns);
+        self.panel_layout(Some(row_height), columns, use_style);
     }
 
     pub fn panel_cursor(&self) -> float2 {
@@ -165,11 +169,15 @@ impl Context {
         panel.bounds.height() - panel.cursor.1
     }
 
-    pub fn panel_layout(&mut self, height: Option<f32>, columns: u32) {
+    pub fn panel_layout(&mut self, height: Option<f32>, columns: u32, use_style: bool) {
         let idx = self.current_panel;
         let panel = &mut self.panel_stack[idx];
         
-        let item_spacing = self.style.window.spacing;
+        let item_spacing = if use_style {
+            self.style.window.spacing.1
+        } else {
+            0f32
+        };
         
         panel.row.index = 0;
         panel.cursor.1 += panel.row.max_height;
@@ -178,13 +186,13 @@ impl Context {
         panel.row.item_offset = 0f32;
 
         if let Some(height) = height {
-            panel.row.height = height + item_spacing.1;
+            panel.row.height = height + item_spacing;
         } else {
             // panel.row.height = panel.row.min_height + item_spacing.1;
         }
     }
     
-    pub fn panel_alloc_space(&mut self, height: Option<f32>) -> Rect {
+    pub fn panel_alloc_space(&mut self, height: Option<f32>, use_style: bool) -> Rect {
         let idx = self.current_panel;
         let (column, max_columns) = {
             let panel = &mut self.panel_stack[idx];
@@ -193,7 +201,7 @@ impl Context {
         };
         
         if column >= max_columns {
-            self.panel_new_row();
+            self.panel_new_row(use_style);
         }
 
         let panel = &mut self.panel_stack[idx];
@@ -201,7 +209,7 @@ impl Context {
             panel.row.max_height = panel.row.max_height.max(height);
             panel.row.height = height;
         }
-        let bounds = self.layout_widget_space(true);
+        let bounds = self.layout_widget_space(true, use_style);
         
         let panel = &mut self.panel_stack[idx];
         panel.row.index += 1;
@@ -221,9 +229,9 @@ impl Context {
         let height = panel.row.height;
 
         if column >= max_columns {
-            self.panel_new_row();
+            self.panel_new_row(true);
         }
-        let w = self.layout_widget_space(false).width();
+        let w = self.layout_widget_space(false, true).width();
 
         let panel = &mut self.panel_stack[idx];
         panel.row.index = column;
@@ -266,10 +274,10 @@ impl Context {
     pub fn begin_panel(&mut self, title: &str, flags: PanelFlags) -> bool {
         let (bounds, state) = self.widget(None);
         
-        self.begin_panel_ex(title, Some(bounds), flags)
+        self.begin_panel_ex(title, Some(bounds), None, flags)
     }
 
-    pub fn begin_panel_ex(&mut self, title: &str, bounds: Option<Rect>, flags: PanelFlags) -> bool {
+    pub fn begin_panel_ex(&mut self, title: &str, bounds: Option<Rect>, tab_area: Option<(f32, f32)>, flags: PanelFlags) -> bool {
         let bounds = if let Some(rect) = bounds {
             rect
         } else {
@@ -281,14 +289,18 @@ impl Context {
         let panel = &mut self.panel_stack[idx];
         panel.reset();
 
-        let panel_padding = panel.get_padding(&self.style.window);
+        let panel_padding = if let None = tab_area {
+            panel.get_padding(&self.style.window)
+        } else {
+            float2(0f32, -1f32)
+        };
         panel.bounds = bounds.grow(
             float2(panel_padding.0, panel_padding.1),
             float2(panel_padding.0, panel_padding.1)
         );
         panel.cursor = panel.bounds.min;
 
-        self.current_panel = self.panel_index;
+        self.current_panel = idx;
         self.panel_index += 1;
 
         let bmin = panel.bounds.min.round();
@@ -303,7 +315,20 @@ impl Context {
             let ht = -border.thickness * 0.5f32;
             let offset = float2(ht, ht);
             let border_bounds = Rect::new(bmin, bmax).grow(offset, offset);
-            self.draw_list.add_rect_gradient(border_bounds.min - float2(0.5f32,0.5f32), border_bounds.max, border.rounding, border.thickness, border.color & 0x00ffffff, border.color);
+            let bb = border_bounds;
+            
+            if let Some((xoff, width)) = tab_area {
+                self.draw_list.path()
+                    .line(float2(bb.min.0 + xoff + width, bb.min.1))
+                    .line(float2(bb.max.0, bb.min.1))
+                    .line(bb.max)
+                    .line(float2(bb.min.0, bb.max.1))
+                    .line(bb.min)
+                    .line(float2(bb.min.0 + xoff + 2f32, bb.min.1))
+                    .stroke_gradient(border.thickness, false, border.color & 0x00ffffff, border.color);
+            } else {
+                self.draw_list.add_rect_gradient(border_bounds.min - float2(0.5f32,0.5f32), border_bounds.max, border.rounding, border.thickness, border.color & 0x00ffffff, border.color);
+            }
         }
         
         true
@@ -311,6 +336,8 @@ impl Context {
     
     pub fn end_panel(&mut self) {
         self.panel_index -= 1;
-        self.current_panel -= self.panel_index;
+        if self.current_panel > 0 {
+            self.current_panel -= 1;
+        }
     }
 }

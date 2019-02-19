@@ -8,6 +8,7 @@ use crate::{
     WindowFlags,
     RowType,
     Id,
+    PanelFlags,
     PoolIndex,
     hash_id,
     
@@ -122,7 +123,7 @@ impl Context {
         tab.prev_frame_visible = tab.curr_frame_visible;
         tab.curr_frame_visible = self.frame;
 
-        self.draw_list.add_line(float2(bounds.min.0, bounds.max.1), bounds.max, 0xffffffff);
+        //self.draw_list.add_line(float2(bounds.min.0, bounds.max.1), bounds.max, 0xffffffff);
 
         self.row(RowType::fixed());
         
@@ -219,11 +220,19 @@ impl Context {
             self.draw_list.add_rect(bounds.min, bounds.max, 0f32, 1f32, 0x8800ffff);
         }
 
+        if is_current {
+            let height = self.available_height();
+            self.row(RowType::dynamic_ex(1, height));
+            self.column(Some(1f32));
+            let (bounds, _state) = self.widget(None);
+            self.begin_panel_ex(title, Some(bounds), Some((offset, width)), PanelFlags::Styled);
+        }
+        
         is_current
     }
 
     pub fn end_tab_item(&mut self) {
-
+        self.end_panel();
     }
 
     fn tab_bar_layout(&mut self, tab_bar_idx: PoolIndex) {
@@ -414,7 +423,6 @@ impl Context {
             }
             _ => {}
         }
-
 
         self.draw_list.path()
             .line(float2(bmin.0, y2))
