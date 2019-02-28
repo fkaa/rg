@@ -606,8 +606,27 @@ fn rg_glutin_event(io: &mut rg::IoState, renderer: &mut rg::Renderer, window: &g
                 io.display_size = size;
                 renderer.resize(size.0, size.1);
             },
+            glutin::WindowEvent::ReceivedCharacter(ch) => {
+                if !ch.is_control() {
+                    io.text_edit_actions.push(rg::TextEditAction::Char(ch));
+                }
+            }
             glutin::WindowEvent::KeyboardInput { input, .. } => {
                 if let Some(vk) = input.virtual_keycode {
+                    if input.state == glutin::ElementState::Pressed {
+                        let shift = input.modifiers.shift;
+                        let key = match vk {
+                            glutin::VirtualKeyCode::Left => Some(rg::TextEditKey::Left(shift)),
+                            glutin::VirtualKeyCode::Right => Some(rg::TextEditKey::Right(shift)),
+                            glutin::VirtualKeyCode::Back => Some(rg::TextEditKey::Backspace),
+                            glutin::VirtualKeyCode::Delete => Some(rg::TextEditKey::Delete),
+                            _ => None
+                        };
+                        if let Some(key) = key {
+                            io.text_edit_actions.push(rg::TextEditAction::Key(key));
+                        }
+                    }
+                    
                     let idx = vk as usize;
                     if input.state == glutin::ElementState::Released {
                         io.down[idx] = false;
@@ -690,7 +709,7 @@ fn main() {
     let mut press_count = 0;
     let mut running = true;
 
-    let mut text = String::new();
+    let mut text = String::from("Here is some sample text for text field");
     
     while running {
         cxt.begin_frame();
@@ -782,76 +801,20 @@ fn main() {
                     cxt.column(Some(0.2f32));
                     cxt.paragraph("Much less text than the one to the left.");
                 }
+                cxt.row(rg::RowType::dynamic(2));
+                cxt.column(Some(0.3f32));
+                cxt.textfield("textfield", &mut text);
+                /*cxt.row(rg::RowType::dynamic(2));
+                cxt.column(Some(1f32));
+                cxt.paragraph(&text);
+                cxt.row(rg::RowType::dynamic(2));
+                cxt.column(Some(0.3f32));
+                cxt.textfield("textfield2", &mut text);*/
                 cxt.end_panel();
             }
             
             cxt.end();
         }
-
-        /*if cxt.begin("Debug", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
-        if cxt.begin_tab_bar("tabbar") {
-        if cxt.begin_tab_item("Test Tab") {
-        cxt.row(rg::RowType::dynamic(1));
-        cxt.column(Some(1f32));
-        cxt.paragraph("Inside Tab 1!");
-
-        cxt.row(rg::RowType::dynamic(2));
-        {
-        cxt.column(Some(0.8f32));
-        cxt.paragraph("Molestiae dolorem blanditiis reprehenderit. Consectetur sint corporis saepe accusamus et. Et in qui alias ut ratione optio perferendis necessitatibus. Quae est sit quas eaque laudantium repellendus. Nam at nihil ipsam quas eum. Excepturi doloremque non dolorum sit. Provident tempore blanditiis nesciunt laborum cumque.");
-        cxt.column(Some(0.2f32));
-        cxt.paragraph("Much less text than the one to the left.");
-    }
-        
-        cxt.end_tab_item();
-    }
-        if cxt.begin_tab_item("Extremely Very Long Tab Name") {
-        cxt.row(rg::RowType::dynamic(1));
-        cxt.column(Some(1f32));
-        cxt.paragraph("Inside Tab 2!");
-        cxt.end_tab_item();
-    }
-        if cxt.begin_tab_item("Another Tab Name") {
-        cxt.row(rg::RowType::dynamic(1));
-        cxt.column(Some(1f32));
-        cxt.paragraph("Inside Tab 3!");
-        
-        cxt.end_tab_item();
-    }
-        cxt.end_tab_bar();
-    }
-        cxt.end();
-    }
-        
-        if cxt.begin("Test Window", rg::WindowFlags::Movable | rg::WindowFlags::Closable | rg::WindowFlags::Title) {
-        cxt.row(rg::RowType::dynamic(2));
-        cxt.row(rg::RowType::dynamic(2));
-        cxt.row(rg::RowType::dynamic(2));
-        cxt.row(rg::RowType::dynamic(2));
-        {
-        cxt.column(Some(0.8f32));
-        cxt.paragraph(&text);
-        
-        cxt.column(Some(0.2f32));
-        if cxt.button_text("Lots of words and textes!") {
-        text += "Button 1 pressed, ";
-    }
-    }
-
-        cxt.row(rg::RowType::dynamic(2));
-        {
-        cxt.column(Some(0.8f32));
-        if cxt.button_text("Press me 1!") {
-        text += "Button 2 pressed, ";
-    }
-        
-        cxt.column(Some(0.2f32));
-        if cxt.button_text("Press me 2!") {
-        text += "Button 3 pressed, ";
-    }
-    }
-        cxt.end();
-    }*/
 
         cxt.draw();
         cxt.end_frame();

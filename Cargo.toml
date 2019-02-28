@@ -12,6 +12,7 @@ unicode-segmentation = "1.2"
 # font-kit = { path = '../font-kit', features = ["loader-freetype-default"] }
 rect_packer = "0.2"
 euclid = "0.19"
+tt = { path = "../tt" }
 
 [dependencies.font-kit]
 git = "https://github.com/fkaa/font-kit/"

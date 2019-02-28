@@ -14,12 +14,15 @@ use crate::{
 mod button;
 mod window;
 mod text;
+mod textfield;
 mod tab;
 mod panel;
+mod slider;
 
 pub use self::button::*;
 pub use self::window::*;
 pub use self::text::*;
+pub use self::textfield::*;
 pub use self::tab::*;
 pub use self::panel::*;
 

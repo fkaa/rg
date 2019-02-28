@@ -159,6 +159,51 @@ impl Font {
             glyphs: vec![FontGlyph::new()],
         })
     }
+
+    fn create_glyph_no_raster(&mut self, id: u16) -> Option<FontGlyph> {
+        let glyph_id = self.font_face.glyph_for_char(::std::char::from_u32(id as u32)?)?;
+        let font_size = self.font_size;
+
+        let hinting = font_kit::hinting::HintingOptions::None;
+        let raster = font_kit::canvas::RasterizationOptions::GrayscaleAa;
+        
+        let glyph_bounds = self.font_face.raster_bounds(
+            glyph_id,
+            self.font_size,
+            &euclid::Point2D::zero(),
+            hinting,
+            raster,
+        ).ok()?;
+
+        let page = if glyph_bounds.size.width == 0 || glyph_bounds.size.height == 0 {
+            0
+        } else {
+            u16::max_value()
+        };
+        
+        let advance = self.font_face.advance(glyph_id).ok()?;
+        let glyph = FontGlyph {
+            page,
+            
+            x: glyph_bounds.origin.x as f32,
+            y: glyph_bounds.origin.y as f32,
+            w: glyph_bounds.size.width as f32,
+            h: glyph_bounds.size.height as f32,
+            x_advance: advance.x,
+
+            u: 0f32,
+            v: 0f32,
+            u_2: 0f32,
+            v_2: 0f32,
+        };
+
+        // add glyph
+        let idx = self.glyphs.len();
+        self.glyph_indices[id as usize] = idx as u16;
+        self.glyphs.push(glyph);
+
+        Some(glyph)
+    }
     
     fn create_glyph(&mut self, renderer: &mut Renderer, id: u16) -> Option<FontGlyph> {
         let glyph_id = self.font_face.glyph_for_char(::std::char::from_u32(id as u32)?)?;
@@ -266,14 +311,90 @@ impl Font {
         }
     }
 
-    ///
-    /// 
-    pub fn get_glyph(&mut self, renderer: &mut Renderer, id: u16) -> Option<FontGlyph> {
+    fn rasterize_glyph(&mut self, renderer: &mut Renderer, idx: usize, ch: u16) -> Option<()> {
+        let g = &mut self.glyphs[idx];
+        if g.page != u16::max_value() {
+            return None;
+        }
+
+        let glyph_id = self.font_face.glyph_for_char(::std::char::from_u32(ch as u32)?)?;
+        let font_size = self.font_size;
+        let hinting = font_kit::hinting::HintingOptions::None;
+        let raster = font_kit::canvas::RasterizationOptions::GrayscaleAa;
+        
+        let glyph_bounds = self.font_face.raster_bounds(
+            glyph_id,
+            self.font_size,
+            &euclid::Point2D::zero(),
+            hinting,
+            raster,
+        ).ok()?;
+
+        for pixel in &mut self.rasterize_cache.pixels {
+            *pixel = 0;
+        }
+
+        self.font_face.rasterize_glyph(
+            &mut self.rasterize_cache,
+            glyph_id,
+            self.font_size,
+            &euclid::Point2D::zero(),
+            hinting,
+            raster,
+        ).ok()?;
+        
+        let (idx, x, y, width, height) = self.font_atlas.pack(
+            renderer,
+            glyph_bounds.size.width,
+            glyph_bounds.size.height
+        )?;
+
+        let tex_handle = self.font_atlas.pages[idx].texture_handle;
+        renderer.upload_a8(
+            tex_handle,
+            x,
+            y,
+            width,
+            height,
+            &self.rasterize_cache.pixels,
+            self.rasterize_cache.stride as u32
+        );
+
+        let size = self.font_atlas.size as f32;
+        let u = x as f32 / size;
+        let v = y as f32 / size;
+        let u_2 = (x + width) as f32 / size;
+        let v_2 = (y + height) as f32 / size;
+
+        g.page = idx as u16;
+        g.u = u;
+        g.v = v;
+        g.u_2 = u_2;
+        g.v_2 = v_2;
+
+        Some(())
+    }
+    
+    pub fn get_glyph_no_raster(&mut self, id: u16) -> Option<FontGlyph> {
         let idx = self.glyph_indices[id as usize];
+
+        if idx == 0 {
+            self.create_glyph_no_raster(id)
+        } else {
+            Some(self.glyphs[idx as usize])
+        }
+    }
+    
+    pub fn get_glyph(&mut self, renderer: &mut Renderer, id: u16) -> Option<FontGlyph> {
+        let idx = self.glyph_indices[id as usize] as usize;
 
         if idx == 0 {
             self.create_glyph(renderer, id)
         } else {
+            let g = &self.glyphs[idx];
+            if g.page == u16::max_value() {
+                self.rasterize_glyph(renderer, idx, id);
+            }
             Some(self.glyphs[idx as usize])
         }
     }
@@ -286,11 +407,25 @@ impl Font {
         self.font_size / (self.metrics.ascent + self.metrics.descent) * self.metrics.ascent
     }
 
+    pub fn chars_width(&mut self, chars: &[char]) -> f32 {
+        let mut x = 0f32;
+        
+        for &ch in chars {
+            if let Some(glyph) = self.get_glyph_no_raster(ch as u16) {
+                let advance = glyph.x_advance * self.font_factor;
+
+                x += advance;
+            }
+        }
+
+        x
+    }
+    
     pub fn text_width(&mut self, renderer: &mut Renderer, text: &str) -> f32 {
         let mut x = 0f32;
         
         for ch in text.chars() {
-            if let Some(glyph) = self.get_glyph(renderer, ch as u16) {
+            if let Some(glyph) = self.get_glyph_no_raster(ch as u16) {
                 let advance = glyph.x_advance * self.font_factor;
 
                 x += advance;
@@ -403,6 +538,87 @@ impl DrawList {
         }
     }
 
+
+    pub fn add_chars_clipped(&mut self, renderer: &mut Renderer, font: &mut Font, text: &[char], mut pos: float2, color: u32, offset_x: f32, end_x: f32) {
+        let mut cursor_x = (pos.0 - offset_x).round();
+
+        for &ch in text {
+            if let Some(g) = font.get_glyph_no_raster(ch as u16) {
+                let w = g.w;
+                
+                if cursor_x + w > pos.0 && cursor_x < end_x {
+                    if let Some(glyph) = font.get_glyph(renderer, ch as u16) {
+                        let texture = font.font_atlas.pages[glyph.page as usize].srv_handle;
+                        self.set_texture(texture);
+
+                        let x = (cursor_x + glyph.x).floor();
+                        let y = pos.1 + (-glyph.y).ceil();
+                        let w = x + glyph.w;
+                        let h = y - glyph.h;
+                        
+                        self.vertices.push(Vertex::new(float2(x, y), float2(glyph.u,   glyph.v_2), color));
+                        self.vertices.push(Vertex::new(float2(x, h), float2(glyph.u,   glyph.v),   color));
+                        self.vertices.push(Vertex::new(float2(w, h), float2(glyph.u_2, glyph.v),   color));
+                        self.vertices.push(Vertex::new(float2(w, y), float2(glyph.u_2, glyph.v_2), color));
+                        
+                        let offset = self.index_offset as u16;                
+                        self.indices.push(offset + 0);
+                        self.indices.push(offset + 1);
+                        self.indices.push(offset + 2);
+                        self.indices.push(offset + 0);
+                        self.indices.push(offset + 2);
+                        self.indices.push(offset + 3);
+                        
+                        self.index_offset += 4;
+                        self.current_cmd().index_count += 6;
+                    }
+                }
+                
+                cursor_x += g.x_advance * font.font_factor;
+            }
+        }
+    }
+    
+    pub fn add_text_clipped(&mut self, renderer: &mut Renderer, font: &mut Font, text: &str, mut pos: float2, color: u32, offset_x: f32, end_x: f32) {
+        let mut cursor_x = (pos.0 - offset_x).round();
+
+        for ch in text.chars() {
+            if let Some(g) = font.get_glyph_no_raster(ch as u16) {
+                let w = g.w;
+                
+                if cursor_x + w > pos.0 && cursor_x < end_x {
+                    if let Some(glyph) = font.get_glyph(renderer, ch as u16) {
+                        let texture = font.font_atlas.pages[glyph.page as usize].srv_handle;
+                        self.set_texture(texture);
+
+                        
+                        let x = (cursor_x + glyph.x).floor();
+                        let y = pos.1 + (-glyph.y).ceil();
+                        let w = x + glyph.w;
+                        let h = y - glyph.h;
+                        
+                        self.vertices.push(Vertex::new(float2(x, y), float2(glyph.u,   glyph.v_2), color));
+                        self.vertices.push(Vertex::new(float2(x, h), float2(glyph.u,   glyph.v),   color));
+                        self.vertices.push(Vertex::new(float2(w, h), float2(glyph.u_2, glyph.v),   color));
+                        self.vertices.push(Vertex::new(float2(w, y), float2(glyph.u_2, glyph.v_2), color));
+                        
+                        let offset = self.index_offset as u16;                
+                        self.indices.push(offset + 0);
+                        self.indices.push(offset + 1);
+                        self.indices.push(offset + 2);
+                        self.indices.push(offset + 0);
+                        self.indices.push(offset + 2);
+                        self.indices.push(offset + 3);
+                        
+                        self.index_offset += 4;
+                        self.current_cmd().index_count += 6;
+                    }
+                }
+                
+                cursor_x += g.x_advance * font.font_factor;
+            }
+        }
+    }
     
     pub fn add_text_wrapped(&mut self, renderer: &mut Renderer, font: &mut Font, text: &str, pos: float2, align: TextAlignment, wrap: f32, color: u32) {
         use unicode_segmentation::UnicodeSegmentation;

@@ -17,13 +17,19 @@ pub use self::collections::*;
 
 use self::math::*;
 
+use std::time::Instant;
+
 pub type Id = u32;
 
-#[repr(u32)]
-pub enum MouseButton {
-    Left = 0,
-    Right = 1,
-    Middle = 2,
+#[derive(Copy, Clone)]
+// #[repr(u32)]
+pub enum DataType {
+    I32,
+    U32,
+    I64,
+    U64,
+    F32,
+    F64,
 }
 
 pub fn hash_id_seed(val: &str, seed: u32) -> Id {
@@ -65,6 +71,11 @@ pub struct Context {
 
     frame: u32,
 
+    now: Instant,
+    active_id: Id,
+    
+    text_edit_id: Id,
+    text_edit_state: EditState,
     current_panel: usize,
     panel_index: usize,
     panel_stack: Vec<Panel>,
@@ -101,6 +112,11 @@ impl Context {
 
             frame: 0,
 
+            now: Instant::now(),
+            active_id: 0,
+
+            text_edit_id: 0,
+            text_edit_state: EditState::new(),
             current_panel: 0,
             panel_index: 0,
             panel_stack: Vec::new(),
@@ -121,7 +137,24 @@ impl Context {
     }
     
     pub fn begin_frame(&mut self) {
+        let delta = {
+            let duration = Instant::now() - self.now;
+            let seconds = duration.as_secs() as f32;
+            let ms = duration.subsec_millis() as f32 / 1000f32;
+
+            seconds + ms
+        };
+        self.io.delta = delta;
+        self.now = Instant::now();
         
+        if self.is_editing_text() {
+            for action in self.io.text_edit_actions.drain(..) {
+                match action {
+                    TextEditAction::Char(ch) => self.text_edit_state.insert_char(ch),
+                    TextEditAction::Key(key) => self.text_edit_state.key_press(key),
+                }
+            }
+        }
     }
     
     pub fn end_frame(&mut self) {
@@ -142,6 +175,15 @@ impl Context {
         } else {
             hash_id(text)
         }
+    }
+
+    pub fn set_active_id(&mut self, id: Id) {
+        //self.active_id_just_activated = self.active_id != id;
+        self.active_id = id;
+    }
+
+    pub fn is_editing_text(&self) -> bool {
+        self.text_edit_state.id != 0
     }
 
     pub fn set_next_window_pos(&mut self, pos: float2) {
@@ -165,6 +207,12 @@ impl Context {
     }
 }
 
+#[repr(u32)]
+pub enum MouseButton {
+    Left = 0,
+    Right = 1,
+    Middle = 2,
+}
 
 pub struct IoState {
     pub display_size: float2,
@@ -180,6 +228,8 @@ pub struct IoState {
     pub pressed: [bool; 512],
     pub down: [bool; 512],
 
+    //pub characters: Vec<char>,
+    pub text_edit_actions: Vec<TextEditAction>,
     pub cursor: Option<CursorType>,
 }
 
@@ -198,6 +248,7 @@ impl IoState {
             mouse_delta: float2(0f32, 0f32),
             mouse_scroll: float2(0f32, 0f32),
 
+            text_edit_actions: Vec::new(),
             cursor: None,
         }
     }
@@ -208,6 +259,7 @@ impl IoState {
         self.mouse_released = [false; 5];
         self.mouse_delta = float2(0f32, 0f32);
         self.mouse_scroll = float2(0f32, 0f32);
+        self.text_edit_actions.clear();
     }
 
     #[inline(always)]
