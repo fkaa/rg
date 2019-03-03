@@ -6,6 +6,7 @@ use crate::{
     TextAlignment,
     Id,
     ButtonFlags,
+    CursorType,
     make_color,
     
     math::{
@@ -67,6 +68,27 @@ impl Context {
             border.color & 0x00ffffff, border.color
         );
     }
+
+    fn locate_textfield_char(&mut self, x: f32) -> usize {
+        let mut prev_x = 0f32;
+        let text = &self.text_edit_state.buffer;
+        
+        for (idx, &ch) in text.iter().enumerate() {
+            let w = self.default_font.char_width(None, ch);
+
+            if x < prev_x + w {
+                if x < prev_x + (w * 0.5f32) {
+                    return idx;
+                } else {
+                    return idx + 1;
+                }
+            }
+            
+            prev_x += w;
+        }
+
+        text.len() - 1
+    }
     
     pub fn textfield(&mut self, id: &str, text: &mut String) {
         let id = self.id(id);
@@ -76,10 +98,18 @@ impl Context {
         let (bounds, state) = self.widget(Some(self.default_font.height() + pad));
 
         let mut clear_active_id = false;
-        
-        let pressed = self.button_behaviour(bounds, ButtonFlags::PressOnClick);
-        let io = &self.io;
 
+        let io = &self.io;
+        let hovering = io.has_mouse_in_rect(bounds);
+        let pressed = hovering && io.is_mouse_pressed(MouseButton::Left);
+        let down = io.is_mouse_down(MouseButton::Left);
+        let dragging = down && io.has_mouse_click_in_rect(MouseButton::Left, bounds);
+        
+        // let pressed = self.button_behaviour(bounds, ButtonFlags::PressOnClick);
+
+        if hovering || dragging {
+            self.cursor = CursorType::Caret;
+        } 
         if pressed {
             if self.active_id != id {
                 self.text_edit_state.buffer.clear();
@@ -103,7 +133,7 @@ impl Context {
 
         let (text_style, border, background) = if self.active_id == id {
             (style.active_text, style.active_border, style.active)
-        } else if state.contains(WidgetState::Hovering) {
+        } else if hovering {
             (style.hover_text, style.hover_border, style.hover)
         } else {
             (style.normal_text, style.normal_border, style.normal)
@@ -124,6 +154,20 @@ impl Context {
             float2(padding, 0f32),
             float2(padding, 0f32)
         );
+
+        let io = &self.io;
+        let sx = self.text_edit_state.scroll_x;
+        let mx = io.mouse.0 - clip_bounds.min.0 + sx; 
+        let dm = io.mouse_delta;
+        if pressed {
+            let cur = self.locate_textfield_char(mx);
+            
+            self.text_edit_state.click(cur);
+        } else if dragging && (dm.0 != 0f32 || dm.1 != 0f32) {
+            let cur = self.locate_textfield_char(mx);
+
+            self.text_edit_state.drag(cur);
+        }
         
         self.draw_textfield_bg(bounds, border, background);
         self.draw_textfield_text(clip_bounds, text, offset, text_style);
@@ -143,6 +187,16 @@ impl Context {
                 cursor_screen_pos,
                 cursor_screen_pos + float2(1f32, self.default_font.height())
             );
+
+            // follow cursor
+            let sx = self.text_edit_state.scroll_x;
+            let w = clip_bounds.width();
+            let increment = w * 0.25f32;
+            if cursor_x < sx {
+                self.text_edit_state.scroll_x = (cursor_x - increment).floor().max(0f32);
+            } else if cursor_x - w >= sx {
+                self.text_edit_state.scroll_x = (cursor_x - w + increment).floor();
+            }
             
             if self.text_edit_state.has_selection() {
                 use std::mem::swap;
@@ -165,6 +219,8 @@ impl Context {
             if self.text_edit_state.is_cursor_visible() {
                 self.draw_list.add_rect_filled(cursor_rect.min, cursor_rect.max, 0f32, 0xffffffff);
             }
+
+
         }
     }
 }
@@ -213,6 +269,25 @@ impl EditState {
         }
     }
 
+    pub fn click(&mut self, cur: usize) {
+        self.cursor = cur;
+        self.selection_start = self.cursor;
+        self.selection_end = self.cursor;
+
+        self.reset_cursor();
+    }
+
+    pub fn drag(&mut self, cur: usize) {
+        if self.selection_start == self.selection_end {
+            self.selection_start = self.cursor;
+        }
+
+        self.cursor = cur;
+        self.selection_end = self.cursor;
+
+        self.reset_cursor();
+    }
+    
     pub fn reset_cursor(&mut self) {
         self.animation = -0.5f32;
     }

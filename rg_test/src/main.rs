@@ -8,6 +8,7 @@ use glutin::GlContext;
 
 use rg::TextureHandle;
 use rg::float2;
+use rg::Rect;
 
 use std::slice;
 use std::ptr;
@@ -684,7 +685,7 @@ fn main() {
     let context = glutin::ContextBuilder::new()
         .with_gl(glutin::GlRequest::Latest)
         .with_gl_profile(glutin::GlProfile::Core)
-        .with_vsync(true);
+        .with_vsync(false);
     let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
 
     unsafe {
@@ -710,10 +711,20 @@ fn main() {
     let mut running = true;
 
     let mut text = String::from("Here is some sample text for text field");
+
+    let mut deltas = [0f32; 60];
+    let mut frame = 0;
     
     while running {
         cxt.begin_frame();
 
+        deltas[frame % 60] = cxt.io.delta;
+        frame += 1;
+        let avg = (deltas.iter().sum::<f32>() / 60f32) * 1000f32;
+        let min = deltas.iter().min_by(|a,b|a.partial_cmp(b).unwrap()).unwrap() * 1000f32;
+        let max = deltas.iter().max_by(|a,b|a.partial_cmp(b).unwrap()).unwrap() * 1000f32;
+        
+        gl_window.set_title(&format!("UI - avg={:.3}ms,min={:.3}ms,max={:.3}ms", avg, min, max));
         {
             let mut io = &mut cxt.io;
 
@@ -816,8 +827,47 @@ fn main() {
             cxt.end();
         }
 
+
+        
         cxt.draw();
         cxt.end_frame();
+
+        if cxt.io.is_key_down(glutin::VirtualKeyCode::F1 as usize) {
+            {
+                let list = &mut cxt.draw_list;
+                list.clear();
+                
+                let dbg_area = Rect::new(float2(20f32, 20f32), float2(700f32, 300f32));
+                let dbg_inner = dbg_area.pad(5f32);
+                let dbg_w = dbg_inner.width();
+                let max_y = 60f32;
+
+                let bot_left = float2(dbg_inner.min.0, dbg_inner.max.1);
+                
+                list.add_rect_filled(dbg_area.min, dbg_area.max, 0f32, 0xbb000000);
+                list.add_rect_filled(dbg_inner.min, dbg_inner.max, 0f32, 0x22ffffff);
+                let y = bot_left.1 - (16.6f32 / max_y) * dbg_inner.height();
+                list.add_line(float2(bot_left.0, y), float2(dbg_inner.max.0, y), 0x55ffffff);
+                let mut path = list.path();
+
+                for (i, &d) in deltas.iter().enumerate() {
+                    let x = bot_left.0 + (i as f32 / 59f32 * dbg_w);
+                    let y = bot_left.1 - ((d * 1000f32) / max_y) * dbg_inner.height();
+                    
+                    let point = float2(x, y);
+
+                    path = path.line(point);
+                }
+                
+                path.stroke(1f32, false, 0xffffffff);
+            }
+            let list = &mut cxt.draw_list;
+                list.push_layer(10);
+
+            cxt.renderer.render(list);
+
+            list.clear();
+        }
 
         gl_window.swap_buffers().unwrap();
     }

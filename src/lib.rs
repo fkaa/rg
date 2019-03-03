@@ -92,7 +92,7 @@ impl Context {
     pub fn new(renderer: Box<Renderer>) -> Self {
         // println!("{:#?}", font_kit::sources::fs::FsSource::new().all_families());
         let family = font_kit::sources::fs::FsSource::new()
-            .select_family_by_name("Segoe UI")
+            .select_family_by_name("DejaVu Sans")
             .unwrap();
         let handle = &family.fonts()[0];
         let default_font = Font::new(String::from("Test"), &handle, 14f32).unwrap();
@@ -262,6 +262,10 @@ impl IoState {
         self.text_edit_actions.clear();
     }
 
+    pub fn is_key_down(&self, key: usize) -> bool {
+        self.down[key]
+    }
+    
     #[inline(always)]
     pub fn has_mouse_in_rect(&self, rect: Rect) -> bool {
         let pos = self.mouse;

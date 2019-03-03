@@ -1,6 +1,6 @@
 use crate::{
     Context, MouseButton, Id, hash_id,
-        WidgetState,
+    WidgetState,
     Background,
     CursorType,
     PanelFlags,

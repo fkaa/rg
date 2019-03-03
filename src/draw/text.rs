@@ -407,6 +407,16 @@ impl Font {
         self.font_size / (self.metrics.ascent + self.metrics.descent) * self.metrics.ascent
     }
 
+    pub fn char_width(&mut self, prev: Option<char>, ch: char) -> f32 {
+        if let Some(glyph) = self.get_glyph_no_raster(ch as u16) {
+            let advance = glyph.x_advance * self.font_factor;
+
+            advance
+        } else {
+            0f32
+        }
+    }
+    
     pub fn chars_width(&mut self, chars: &[char]) -> f32 {
         let mut x = 0f32;
         
