@@ -209,9 +209,9 @@ impl Context {
 
 #[repr(u32)]
 pub enum MouseButton {
-    Left = 0,
-    Right = 1,
+    Left = 1,
     Middle = 2,
+    Right = 3,
 }
 
 pub struct IoState {

@@ -3,9 +3,10 @@ name = "rg_test"
 version = "0.1.0"
 # build = "shaders/build.rs"
 authors = ["fkaa"]
+edition = "2018"
 
 [dependencies]
 rg = { path = ".." }
 winapi = { version = "0.3", features = ["everything"] }
-glutin = "0.18"
+sdl2 = "*"
 gl = "*"

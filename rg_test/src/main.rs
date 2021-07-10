@@ -1,10 +1,13 @@
-extern crate rg;
-extern crate winapi;
-extern crate glutin;
-extern crate gl;
+use sdl2::{
+    event::{WindowEvent, Event},
+    keyboard::Keycode,
+    mouse::MouseButton,
+    video::{
+        GLProfile,
+        SwapInterval,
+    }
+};
 
-use glutin::dpi::*;
-use glutin::GlContext;
 
 use rg::TextureHandle;
 use rg::float2;
@@ -576,8 +579,108 @@ impl rg::Renderer for RgOpenGlRenderer {
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
 
-fn rg_glutin_event(io: &mut rg::IoState, renderer: &mut rg::Renderer, window: &glutin::Window, event: glutin::Event) {
-    match event {
+fn handle_event(io: &mut rg::IoState, renderer: &mut rg::Renderer, event: &Event) {
+        match event {
+            Event::MouseMotion {
+                x,
+                y,
+                ..
+            } => {
+                let new_pos = float2(*x as _, *y as _);
+                let old = io.mouse;
+                io.mouse = new_pos;
+
+                io.mouse_delta += io.mouse - old;
+            },
+            Event::MouseButtonDown {
+                mouse_btn,
+                x,
+                y,
+                ..
+            } => {
+                let idx = *mouse_btn as usize;
+
+                if !io.mouse_down[idx] {
+                    io.mouse_pressed[idx] = true;
+                    io.mouse_clicked_pos[idx] = io.mouse;
+                }
+
+                io.mouse_down[idx] = true;
+            },
+            Event::MouseButtonUp {
+                mouse_btn,
+                x,
+                y,
+                ..
+            } => {
+                let idx = *mouse_btn as usize;
+
+                io.mouse_down[idx] = false;
+                io.mouse_released[idx] = true;
+            },
+            Event::Window { win_event, .. } => {
+                match win_event {
+                    WindowEvent::Resized(w, h) => {
+                        let size = float2(*w as f32, *h as f32);
+                        
+                        io.display_size = size;
+                        renderer.resize(size.0, size.1);
+                    },
+                    _ => {}
+                }
+            },
+            /*Event::KeyDown {
+                keycode,
+                scancode,
+                keymod: _,
+                ..
+            } => {
+                if let Some(scan) = scancode {
+                    let idx = *scan as usize;
+
+                    if !self.scan_down[idx] {
+                        self.scan_press.set(idx, true);
+                    }
+
+                    self.scan_down.set(idx, true);
+                }
+
+                if let Some(key) = keycode {
+                    let idx = (*key as usize) & !(1 << 30);
+
+                    if !self.key_down[idx] {
+                        self.key_press.set(idx, true);
+                    }
+
+                    self.key_down.set(idx, true);
+                }
+            }
+            Event::KeyUp {
+                keycode,
+                scancode,
+                keymod: _,
+                ..
+            } => {
+                if let Some(scan) = scancode {
+                    let idx = *scan as usize;
+
+                    self.scan_down.set(idx, false);
+                    self.scan_up.set(idx, true);
+                }
+
+                if let Some(key) = keycode {
+                    let idx = (*key as usize) & !(1 << 30);
+
+                    self.key_down.set(idx, false);
+                    self.key_up.set(idx, true);
+                }
+            }*/
+            _ => {}
+        }
+
+
+
+    /*match event {
         glutin::Event::DeviceEvent { event, .. } => match event {
             glutin::DeviceEvent::MouseMotion { delta } => {
                 //io.mouse_delta += float2(delta.0 as f32, delta.1 as f32);
@@ -674,26 +777,36 @@ fn rg_glutin_event(io: &mut rg::IoState, renderer: &mut rg::Renderer, window: &g
             _ => {}
         }
         _ => {}
-    }
+    }*/
 }
 
 fn main() {
-    let mut events_loop = glutin::EventsLoop::new();
-    let window = glutin::WindowBuilder::new()
-        .with_title("UI")
-        .with_dimensions(LogicalSize::new(WIDTH as _, HEIGHT as _));
-    let context = glutin::ContextBuilder::new()
-        .with_gl(glutin::GlRequest::Latest)
-        .with_gl_profile(glutin::GlProfile::Core)
-        .with_vsync(false);
-    let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+    video_subsystem.gl_attr().set_context_version(3, 3);
+    video_subsystem
+        .gl_attr()
+        .set_context_profile(GLProfile::Core);
+
+    let w = 800;
+    let h = 600;
+
+    let window = video_subsystem
+        .window("window", w, h)
+        .position_centered()
+        .opengl()
+        .build()
+        .map_err(|e| e.to_string())
+        .unwrap();
+
+    let cxt = window.gl_create_context().unwrap();
+
+    window.gl_make_current(&cxt).unwrap();
+
+    video_subsystem.gl_set_swap_interval(SwapInterval::VSync).unwrap();
 
     unsafe {
-        gl_window.make_current().unwrap();
-    }
-
-    unsafe {
-        gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
+        gl::load_with(|symbol| video_subsystem.gl_get_proc_address(symbol) as _);
         //gl::DebugMessageCallback(gl_error_callback, ptr::null_mut());
         //gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
         gl::ClearColor(0.25, 0.25, 0.25, 1.0);
@@ -707,6 +820,13 @@ fn main() {
     let mut renderer = RgOpenGlRenderer::new().unwrap();
     let mut cxt = rg::Context::new(Box::new(renderer));
 
+
+    use rg::Renderer;
+
+    let size = float2(w as _, h as _);
+    cxt.io.display_size = size;
+    cxt.renderer.resize(size.0, size.1);
+
     let mut press_count = 0;
     let mut running = true;
 
@@ -714,6 +834,9 @@ fn main() {
 
     let mut deltas = [0f32; 60];
     let mut frame = 0;
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
     
     while running {
         cxt.begin_frame();
@@ -724,11 +847,11 @@ fn main() {
         let min = deltas.iter().min_by(|a,b|a.partial_cmp(b).unwrap()).unwrap() * 1000f32;
         let max = deltas.iter().max_by(|a,b|a.partial_cmp(b).unwrap()).unwrap() * 1000f32;
         
-        gl_window.set_title(&format!("UI - avg={:.3}ms,min={:.3}ms,max={:.3}ms", avg, min, max));
+        //gl_window.set_title(&format!("UI - avg={:.3}ms,min={:.3}ms,max={:.3}ms", avg, min, max));
         {
             let mut io = &mut cxt.io;
 
-            if let Some(cursor) = io.cursor {
+            /*if let Some(cursor) = io.cursor {
                 let glutin_cursor = match cursor {
                     rg::CursorType::Default => glutin::MouseCursor::Default,
                     rg::CursorType::Caret => glutin::MouseCursor::Text,
@@ -739,21 +862,19 @@ fn main() {
                 };
 
                 gl_window.set_cursor(glutin_cursor);
-            }
+            }*/
 
             io.clear();
             let renderer = &mut *cxt.renderer;
-            events_loop.poll_events(|event| {
-                match &event {
-                    glutin::Event::WindowEvent{ event, window_id } => match event {
-                        glutin::WindowEvent::CloseRequested => { running = false; }
-                        _ => {}
-                    }
-                    _ => {}
+
+            for event in event_pump.poll_iter() {
+                handle_event(&mut io, renderer, &event);
+
+                if let Event::Quit { .. } = event {
+                    running = false;
+                    break;
                 }
-                
-                rg_glutin_event(io, renderer, &gl_window, event);
-            });
+            }
         }
 
         
@@ -774,6 +895,15 @@ fn main() {
                         cxt.row(rg::RowType::dynamic(1));
                         cxt.column(Some(1f32));
                         cxt.paragraph("Inside Tab 1!");
+
+                        cxt.row(rg::RowType::dynamic(3));
+                        cxt.column(Some(1.0 / 3.0));
+                        cxt.button_text("hello");
+                        cxt.column(Some(1.0 / 3.0));
+                        cxt.button_text("abc");
+                        cxt.column(Some(1.0 / 3.0));
+                        cxt.button_text("iasd asd");
+
 
                         cxt.row(rg::RowType::dynamic(2));
                         {
@@ -832,7 +962,7 @@ fn main() {
         cxt.draw();
         cxt.end_frame();
 
-        if cxt.io.is_key_down(glutin::VirtualKeyCode::F1 as usize) {
+        if cxt.io.is_key_down(0) {
             {
                 let list = &mut cxt.draw_list;
                 list.clear();
@@ -869,6 +999,6 @@ fn main() {
             list.clear();
         }
 
-        gl_window.swap_buffers().unwrap();
+        window.gl_swap_window();
     }
 }

@@ -37,8 +37,8 @@ impl Context {
         }
     }
     
-    pub fn sliderf_tt(&mut self, label: &str, tt: &mut tt::Tt, prop: tt::StringId) {
+    /*pub fn sliderf_tt(&mut self, label: &str, tt: &mut tt::Tt, prop: tt::StringId) {
         let h = self.default_font.height();
         let (bounds, state) = self.widget(Some(h));
-    }
+    }*/
 }
